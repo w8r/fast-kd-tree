@@ -25,8 +25,7 @@ const points = new Array(N).fill(0).map(() => {
   };
 });
 
-const tree = new KDTree(points);
-console.log(tree);
+const tree = window.tree = new KDTree(points);
 const leftColor = scaleLinear().domain([0, Math.floor(N / 2)])
       .interpolate(interpolateRgb)
       .range(['orange', 'red']);
@@ -42,6 +41,7 @@ function getPoints(subtree) {
   while (q.length !== 0) {
     const next = q.pop();
     if (next) {
+      list.push(next.point);
       if (next.left)  list.push(next.left.point);
       if (next.right) list.push(next.right.point);
       q.push(next.left, next.right);
@@ -52,7 +52,7 @@ function getPoints(subtree) {
 
 
 function getBBox(node) {
-  if (node.left || node.right) {
+  if (node) {
     const points = [node.point].concat(getPoints(node.left)).concat(getPoints(node.right));
     return points.reduce((acc, { x, y }) => {
       acc[0] = Math.min(x, acc[0]);
@@ -64,11 +64,29 @@ function getBBox(node) {
   } else return null;
 }
 
+const query = [0,0,0,0];
+const found = [];
+
+canvas.addEventListener('mousemove', ({ x, y }) => {
+  x *= pxRatio;
+  y *= pxRatio;
+  found.length = 0;
+  query[0] = x - 50;
+  query[1] = y - 50;
+  query[2] = x + 50;
+  query[3] = y + 50;
+
+  found.push.apply(found, tree.query(query[0], query[1], query[2], query[3]));
+  requestAnimationFrame(render);
+});
+
 const r = 5;
 function render() {
   ctx.clearRect(0, 0, w, h);
 
+  ctx.globalAlpha = 0.2;
   const Q = [tree._root];
+  const mid = tree._root.code;
   while (Q.length !== 0) {
     const node = Q.pop();
     if (node) {
@@ -76,8 +94,8 @@ function render() {
       const hull = polygonHull(pts.map(({x,y}) => [x, y]));
       if (hull) {
         ctx.beginPath();
-        ctx.globalAlpha = 0.2;
-        ctx.fillStyle = (!node.parent || node.parent.left === node) ? 'blue' : 'orange';
+        ctx.fillStyle = node.code < mid ? 'blue' : 'orange';
+        // (!node.parent || node.parent.left === node) ? 'blue' : 'orange';
         ctx.moveTo(hull[0][0], hull[0][1]);
         for (let i = 1; i < hull.length; i++) {
           const hp = hull[i];
@@ -87,7 +105,7 @@ function render() {
         ctx.closePath();
         ctx.fill();
       }
-      Q.push(node.left, node.right);
+      Q.unshift(node.left, node.right);
     }
   }
   ctx.globalAlpha = 1;
@@ -159,6 +177,25 @@ function render() {
     node = node.next;
   }
   ctx.closePath();
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.strokeStyle = 'red';
+  ctx.lineWidth = 2;
+  ctx.rect(query[0], query[1], query[2] - query[0], query[3] - query[1]);
+  ctx.stroke();
+  ctx.strokeStyle = 'black';
+  ctx.lineWidth = 1;
+
+
+  ctx.fillStyle = 'red';
+  ctx.beginPath();
+  found.forEach(({ x, y }) => {
+    ctx.moveTo(x + r, y);
+    ctx.arc(x, y, 2 * r, 0, 2 * Math.PI, false);
+  })
+  ctx.closePath();
+  ctx.fill();
   ctx.stroke();
 }
 

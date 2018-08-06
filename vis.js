@@ -36,77 +36,220 @@ function sort (array, order) {
 }
 
 // Fast Hilbert curve algorithm by http://threadlocalmutex.com/
-// Ported from C++ https://github.com/rawrunprotected/hilbert_curves (public domain)
-function hilbert(x, y) {
-  var a = x ^ y;
-  var b = 0xFFFF ^ a;
-  var c = 0xFFFF ^ (x | y);
-  var d = x & (y ^ 0xFFFF);
 
-  var A = a | (b >> 1);
-  var B = (a >> 1) ^ a;
-  var C = ((c >> 1) ^ (b & (d >> 1))) ^ c;
-  var D = ((a & (c >> 1)) ^ (d >> 1)) ^ d;
-
-  a = A; b = B; c = C; d = D;
-  A = ((a & (a >> 2)) ^ (b & (b >> 2)));
-  B = ((a & (b >> 2)) ^ (b & ((a ^ b) >> 2)));
-  C ^= ((a & (c >> 2)) ^ (b & (d >> 2)));
-  D ^= ((b & (c >> 2)) ^ ((a ^ b) & (d >> 2)));
-
-  a = A; b = B; c = C; d = D;
-  A = ((a & (a >> 4)) ^ (b & (b >> 4)));
-  B = ((a & (b >> 4)) ^ (b & ((a ^ b) >> 4)));
-  C ^= ((a & (c >> 4)) ^ (b & (d >> 4)));
-  D ^= ((b & (c >> 4)) ^ ((a ^ b) & (d >> 4)));
-
-  a = A; b = B; c = C; d = D;
-  C ^= ((a & (c >> 8)) ^ (b & (d >> 8)));
-  D ^= ((b & (c >> 8)) ^ ((a ^ b) & (d >> 8)));
-
-  a = C ^ (C >> 1);
-  b = D ^ (D >> 1);
-
-  var i0 = x ^ y;
-  var i1 = b | (0xFFFF ^ (i0 | a));
-
-  i0 = (i0 | (i0 << 8)) & 0x00FF00FF;
-  i0 = (i0 | (i0 << 4)) & 0x0F0F0F0F;
-  i0 = (i0 | (i0 << 2)) & 0x33333333;
-  i0 = (i0 | (i0 << 1)) & 0x55555555;
-
-  i1 = (i1 | (i1 << 8)) & 0x00FF00FF;
-  i1 = (i1 | (i1 << 4)) & 0x0F0F0F0F;
-  i1 = (i1 | (i1 << 2)) & 0x33333333;
-  i1 = (i1 | (i1 << 1)) & 0x55555555;
-
-  return ((i1 << 1) | i0) >>> 0;
+function createCommonjsModule(fn, module) {
+	return module = { exports: {} }, fn(module, module.exports), module.exports;
 }
+
+var morton_1 = createCommonjsModule(function (module) {
+// Morton lookup tables.
+// Based on http://graphics.stanford.edu/~seander/bithacks.html#InterleaveTableLookup
+var X = [ 0, 1 ], Y = [ 0, 2 ];
+for (var i = 4; i < 0xFFFF; i <<= 2) {
+    for (var j = 0, l = X.length; j < l; j++) {
+        X.push((X[j] | i));
+        Y.push((X[j] | i) << 1);
+    }
+}
+
+// Only works for 24 bit input numbers (up to 16777215).
+var morton = module.exports = function morton(x, y) {
+    return (Y[y         & 0xFF] | X[x         & 0xFF]) +
+           (Y[(y >> 8)  & 0xFF] | X[(x >> 8)  & 0xFF]) * 0x10000 +
+           (Y[(y >> 16) & 0xFF] | X[(x >> 16) & 0xFF]) * 0x100000000;
+};
+
+var code = module.exports.code = function code(z, x, y) {
+    if (z > 24) { throw 'Morton codes are only supported up to Z=24'; }
+    var Z = 1 << (24 - z);
+    return morton(x * Z, y * Z);
+};
+
+var range = module.exports.range = function range(z, x, y) {
+    if (z > 24) { throw 'Morton ranges are only supported up to Z=24'; }
+    var Z = 1 << (24 - z);
+    var lower = morton(x * Z, y * Z);
+    return [ lower, lower + Z * Z - 1 ];
+};
+
+var rX, rY;
+var reverse = module.exports.reverse = function reverse(c) {
+    if (c > 0xFFFFFFFFFFFF) { throw 'Only morton codes up to 48 bits are supported.'; }
+    if (!rX) {
+        // Create reverse lookup tables.
+        rX = {}; rY = {};
+        for (var i = 0; i < 256; i++) {
+            rX[morton(i, 0)] = i;
+            rY[morton(0, i)] = i;
+        }
+    }
+
+    var x = rX[c & 0x5555];
+    var y = rY[c & 0xAAAA];
+    if (c > 0xFFFF) {
+        c /= 0x10000;
+        x |= rX[c & 0x5555] << 8;
+        y |= rY[c & 0xAAAA] << 8;
+        if (c > 0xFFFF) {
+            c /= 0x10000;
+            x |= rX[c & 0x5555] << 16;
+            y |= rY[c & 0xAAAA] << 16;
+        }
+    }
+
+    return [ x, y ];
+};
+
+var decode = module.exports.decode = function decode(z, c) {
+    var output = reverse(c);
+    var Z = 1 << (24 - z);
+    return [ output[0] / Z, output[1] / Z ];
+};
+});
+var morton_2 = morton_1.code;
+var morton_3 = morton_1.range;
+var morton_4 = morton_1.reverse;
+var morton_5 = morton_1.decode;
 
 var KDTree = function KDTree (points, x, y) {
   if ( x === void 0 ) x = function (p) { return p.x; };
   if ( y === void 0 ) y = function (p) { return p.y; };
 
+  this._x = x;
+  this._y = y;
+  this.buildHilbert(points);
+  //this.build(points);
+};
+
+KDTree.prototype.buildHilbert = function buildHilbert (points) {
   var n     = points.length;
   var hvalues = new Array(n);
   var order = new Array(n);
+  var x = this._x, y = this._y;
 
   for (var i = 0; i < n; i++) {
     var p = points[i];
-    hvalues[i] = hilbert(p.x, p.y);
+    hvalues[i] = morton_1(x(p), y(p));
     order[i]= i;
   }
   sort(order, hvalues);
-  this._list = toList(points, order);
+  this._list = toList(points, order, hvalues, x, y);
   this._root = sortedListToBST({ head: this._list }, 0, n);
+
+  var node = this._list;
+  // while (node) {
+  // node.xmin = node.ymin = Infinity;
+  // node.xmax = node.ymax = -Infinity;
+  // node = node.next;
+  // }
+
+  node = this._list;
+  // while (node) {
+  // const parent = node.parent;
+  // const xn = x(node.point), yn = y(node.point);
+  // if (parent) {
+  //   if (xn < parent.xmin) parent.xmin = xn;
+  //   if (yn < parent.ymin) parent.ymin = yn;
+  //   if (xn > parent.xmax) parent.xmax = xn;
+  //   if (yn > parent.ymax) parent.ymax = yn;
+  // }
+  // node = node.next;
+  // }
+};
+
+// build (points) {
+// const n = points.length;
+// const x = this._x, y = this._y;
+// const indexes = new Array(n);
+// const X = new Array(n), Y = new Array(n);
+// for (let i = 0; i < n; i++) {
+//   const p = points[i];
+//   X[i] = x(p); Y[i] = y(p); indexes[i] = i;
+// }
+// const byX = sort(indexes.slice(), X);
+// const byY = sort(indexes.slice(), Y);
+
+
+// }
+
+// _build (points, order, start, end) {
+// if (start === end) { // leaf
+//   return { point: points[start], parent: null, left: null, right: null };
+// } else {
+//   const med = Math.floor((start + end) / 2);
+//   const root = { points[med]
+// }
+
+// }
+
+
+KDTree.prototype.query = function query (xmin, ymin, xmax, ymax) {
+    var this$1 = this;
+
+  var qmin = morton_1(xmin, ymin), qmax = morton_1(xmax, ymax);
+  var result = [];
+
+  this.range(qmin, qmax, function (node) {
+    var x = this$1._x(node.point), y = this$1._y(node.point);
+    if (x <= xmax && x >= xmin && y <= ymax && y >= ymin) {
+      result.push(node.point);
+    }
+  });
+
+  return result;
+
+
+  // const Q = [this._root];
+  // const result = [];
+  // while (Q.length !== 0) {
+  // const node = Q.pop();
+  // if (node) {
+  //   const x = this._x(node.point), y = this._y(node.point);
+  //   if (x <= xmax && x >= xmin && y <= ymax && y >= ymin) {
+  //     result.push(node.point);
+  //   }
+  //   const { left, right } = node;
+  //   if (left&& left.code>= qmin) Q.push(left);
+  //   if (right && right.code <= qmax) Q.push(right);
+  //   console.log(node.code, node.left, node.right, qmin, qmax);
+  // }
+  // }
+  // return result;
 };
 
 
-function toList (nodes, order) {
+KDTree.prototype.range = function range (low, high, fn, ctx) {
+    var this$1 = this;
+
+  var Q = [];
+  var node = this._root;
+
+  while (Q.length !== 0 || node) {
+    if (node) {
+      Q.push(node);
+      node = node.left;
+    } else {
+      node = Q.pop();
+      if (node.code > high) {
+        break;
+      } else if (node.code >= low) {
+        if (fn.call(ctx, node)) { return this$1; } // stop if smth is returned
+      }
+      node = node.right;
+    }
+  }
+  return this;
+};
+
+
+function toList (nodes, order, codes, x, y) {
   var list = { next: null };
   var prev = list;
   for (var i = 0; i < nodes.length; i++) {
-    prev = prev.next = { point: nodes[order[i]] };
+    var node = nodes[order[i]];
+    //const cx = x(node), cy = y(node);
+
+    prev = prev.next = { code: codes[order[i]], point: node };
   }
   prev.next = null;
   return list.next;
@@ -5772,8 +5915,7 @@ var points = new Array(N).fill(0).map(function () {
   };
 });
 
-var tree$1 = new KDTree(points);
-console.log(tree$1);
+var tree$1 = window.tree = new KDTree(points);
 var leftColor = linear$2().domain([0, Math.floor(N / 2)])
       .interpolate(interpolateRgb)
       .range(['orange', 'red']);
@@ -5789,6 +5931,7 @@ function getPoints(subtree) {
   while (q.length !== 0) {
     var next = q.pop();
     if (next) {
+      list.push(next.point);
       if (next.left)  { list.push(next.left.point); }
       if (next.right) { list.push(next.right.point); }
       q.push(next.left, next.right);
@@ -5799,7 +5942,7 @@ function getPoints(subtree) {
 
 
 function getBBox(node) {
-  if (node.left || node.right) {
+  if (node) {
     var points = [node.point].concat(getPoints(node.left)).concat(getPoints(node.right));
     return points.reduce(function (acc, ref) {
       var x = ref.x;
@@ -5814,11 +5957,32 @@ function getBBox(node) {
   } else { return null; }
 }
 
+var query = [0,0,0,0];
+var found = [];
+
+canvas.addEventListener('mousemove', function (ref) {
+  var x = ref.x;
+  var y = ref.y;
+
+  x *= pxRatio;
+  y *= pxRatio;
+  found.length = 0;
+  query[0] = x - 50;
+  query[1] = y - 50;
+  query[2] = x + 50;
+  query[3] = y + 50;
+
+  found.push.apply(found, tree$1.query(query[0], query[1], query[2], query[3]));
+  requestAnimationFrame(render);
+});
+
 var r = 5;
 function render() {
   ctx.clearRect(0, 0, w, h);
 
+  ctx.globalAlpha = 0.2;
   var Q = [tree$1._root];
+  var mid = tree$1._root.code;
   while (Q.length !== 0) {
     var node$1 = Q.pop();
     if (node$1) {
@@ -5831,8 +5995,8 @@ function render() {
       }));
       if (hull) {
         ctx.beginPath();
-        ctx.globalAlpha = 0.2;
-        ctx.fillStyle = (!node$1.parent || node$1.parent.left === node$1) ? 'blue' : 'orange';
+        ctx.fillStyle = node$1.code < mid ? 'blue' : 'orange';
+        // (!node.parent || node.parent.left === node) ? 'blue' : 'orange';
         ctx.moveTo(hull[0][0], hull[0][1]);
         for (var i = 1; i < hull.length; i++) {
           var hp = hull[i];
@@ -5842,7 +6006,7 @@ function render() {
         ctx.closePath();
         ctx.fill();
       }
-      Q.push(node$1.left, node$1.right);
+      Q.unshift(node$1.left, node$1.right);
     }
   }
   ctx.globalAlpha = 1;
@@ -5923,6 +6087,28 @@ function render() {
     node = node.next;
   }
   ctx.closePath();
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.strokeStyle = 'red';
+  ctx.lineWidth = 2;
+  ctx.rect(query[0], query[1], query[2] - query[0], query[3] - query[1]);
+  ctx.stroke();
+  ctx.strokeStyle = 'black';
+  ctx.lineWidth = 1;
+
+
+  ctx.fillStyle = 'red';
+  ctx.beginPath();
+  found.forEach(function (ref) {
+    var x = ref.x;
+    var y = ref.y;
+
+    ctx.moveTo(x + r, y);
+    ctx.arc(x, y, 2 * r, 0, 2 * Math.PI, false);
+  });
+  ctx.closePath();
+  ctx.fill();
   ctx.stroke();
 }
 

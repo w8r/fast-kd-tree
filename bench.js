@@ -6,8 +6,12 @@ import sort from './sort';
 
 
 const N = 10000;
-const points = new Array(N).fill(0).map(() => {
-  return { x: Math.random() * N, y: Math.random() * N };
+const points = new Array(N).fill(0).map((_, i) => {
+  if (i < N / 2) {
+    return { x: Math.random() * N / 100, y: Math.random() * N / 100 };
+  } else {
+    return { x: Math.random() * N, y: Math.random() * N };
+  }
 });
 
 const options = {
@@ -36,6 +40,6 @@ const indexes = rand.map((_, i) => i);
 new Benchmark.Suite('sort', options)
 .add('built-in', () => {
   indexes.slice().sort((a, b) => rand[a] - rand[b]);
-}).add('radix', () => {
+}).add('quick', () => {
   sort(indexes.slice(), rand);
 }).run();
