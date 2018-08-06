@@ -1,0 +1,43 @@
+{
+  "name": "fast-kd-tree",
+  "version": "1.0.0",
+  "description": "Fast static kd-tree",
+  "main": "index.js",
+  "scripts": {
+    "test": "mocha -r reify test.js",
+    "lint": "eslint index.js",
+    "bench": "node -r reify bench.js",
+    "build": "rollup -c",
+    "start": "rollup -cw"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/w8r/fast-kd-tree.git"
+  },
+  "keywords": [
+    "kd-tree",
+    "spatial-partitioning",
+    "spatial-index",
+    "binary-tree"
+  ],
+  "author": "Alexander Milevski <info@w8r.name>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/w8r/fast-kd-tree/issues"
+  },
+  "homepage": "https://github.com/w8r/fast-kd-tree#readme",
+  "devDependencies": {
+    "benchmark": "^2.1.4",
+    "chai": "^4.1.2",
+    "d3": "^5.5.0",
+    "d3-quadtree": "^1.0.3",
+    "eslint": "^5.3.0",
+    "kdbush": "^2.0.1",
+    "mocha": "^5.2.0",
+    "reify": "^0.17.2",
+    "rollup": "^0.63.5",
+    "rollup-plugin-buble": "^0.19.2",
+    "rollup-plugin-node-resolve": "^3.3.0"
+  },
+  "dependencies": {}
+}
