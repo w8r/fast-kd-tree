@@ -36,6 +36,52 @@ function sort (array, order) {
 }
 
 // Fast Hilbert curve algorithm by http://threadlocalmutex.com/
+// Ported from C++ https://github.com/rawrunprotected/hilbert_curves (public domain)
+function hilbert(x, y) {
+  var a = x ^ y;
+  var b = 0xFFFF ^ a;
+  var c = 0xFFFF ^ (x | y);
+  var d = x & (y ^ 0xFFFF);
+
+  var A = a | (b >> 1);
+  var B = (a >> 1) ^ a;
+  var C = ((c >> 1) ^ (b & (d >> 1))) ^ c;
+  var D = ((a & (c >> 1)) ^ (d >> 1)) ^ d;
+
+  a = A; b = B; c = C; d = D;
+  A = ((a & (a >> 2)) ^ (b & (b >> 2)));
+  B = ((a & (b >> 2)) ^ (b & ((a ^ b) >> 2)));
+  C ^= ((a & (c >> 2)) ^ (b & (d >> 2)));
+  D ^= ((b & (c >> 2)) ^ ((a ^ b) & (d >> 2)));
+
+  a = A; b = B; c = C; d = D;
+  A = ((a & (a >> 4)) ^ (b & (b >> 4)));
+  B = ((a & (b >> 4)) ^ (b & ((a ^ b) >> 4)));
+  C ^= ((a & (c >> 4)) ^ (b & (d >> 4)));
+  D ^= ((b & (c >> 4)) ^ ((a ^ b) & (d >> 4)));
+
+  a = A; b = B; c = C; d = D;
+  C ^= ((a & (c >> 8)) ^ (b & (d >> 8)));
+  D ^= ((b & (c >> 8)) ^ ((a ^ b) & (d >> 8)));
+
+  a = C ^ (C >> 1);
+  b = D ^ (D >> 1);
+
+  var i0 = x ^ y;
+  var i1 = b | (0xFFFF ^ (i0 | a));
+
+  i0 = (i0 | (i0 << 8)) & 0x00FF00FF;
+  i0 = (i0 | (i0 << 4)) & 0x0F0F0F0F;
+  i0 = (i0 | (i0 << 2)) & 0x33333333;
+  i0 = (i0 | (i0 << 1)) & 0x55555555;
+
+  i1 = (i1 | (i1 << 8)) & 0x00FF00FF;
+  i1 = (i1 | (i1 << 4)) & 0x0F0F0F0F;
+  i1 = (i1 | (i1 << 2)) & 0x33333333;
+  i1 = (i1 | (i1 << 1)) & 0x55555555;
+
+  return ((i1 << 1) | i0) >>> 0;
+}
 
 function createCommonjsModule(fn, module) {
 	return module = { exports: {} }, fn(module, module.exports), module.exports;
@@ -129,7 +175,7 @@ KDTree.prototype.buildHilbert = function buildHilbert (points) {
 
   for (var i = 0; i < n; i++) {
     var p = points[i];
-    hvalues[i] = morton_1(x(p), y(p));
+    hvalues[i] = hilbert(x(p), y(p));
     order[i]= i;
   }
   sort(order, hvalues);
@@ -249,7 +295,7 @@ function toList (nodes, order, codes, x, y) {
     var node = nodes[order[i]];
     //const cx = x(node), cy = y(node);
 
-    prev = prev.next = { code: codes[order[i]], point: node };
+    prev = prev.next = node;
   }
   prev.next = null;
   return list.next;
@@ -259,7 +305,7 @@ function toList (nodes, order, codes, x, y) {
 function sortedListToBST (list, start, end) {
   var size = end - start;
   if (size > 0) {
-    var middle = start + Math.floor(size / 2);
+    var middle = start + (size >> 1);
     var left = sortedListToBST(list, start, middle);
 
     var root = list.head;
@@ -5908,11 +5954,22 @@ var h = canvas.height = screenHeight * devicePixelRatio;
 
 var N = 100;
 
-var points = new Array(N).fill(0).map(function () {
-  return {
-    x: Math.random() * w,
-    y: Math.random() * h
-  };
+// const points = new Array(N).fill(0).map(() => {
+//   return {
+//     x: Math.random() * w,
+//     y: Math.random() * h
+//   };
+// });
+var cells$1 = Math.sqrt(N) | 0;
+var x$5 = 0, y$5 = 0;
+var points = new Array(N).fill(0).map(function (_, i) {
+  var pt = { x: x$5, y: y$5 };
+  x$5 += w / cells$1;
+  if (i % cells$1 === 0) {
+    y$5 += h / cells$1;
+    x$5 = 0;
+  }
+  return pt;
 });
 
 var tree$1 = window.tree = new KDTree(points);

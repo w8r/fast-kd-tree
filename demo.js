@@ -18,11 +18,22 @@ const h = canvas.height = screenHeight * devicePixelRatio;
 
 const N = 100;
 
-const points = new Array(N).fill(0).map(() => {
-  return {
-    x: Math.random() * w,
-    y: Math.random() * h
-  };
+// const points = new Array(N).fill(0).map(() => {
+//   return {
+//     x: Math.random() * w,
+//     y: Math.random() * h
+//   };
+// });
+const cells = Math.sqrt(N) | 0;
+let x = 0, y = 0;
+const points = new Array(N).fill(0).map((_, i) => {
+  const pt = { x, y };
+  x += w / cells;
+  if (i % cells === 0) {
+    y += h / cells;
+    x = 0;
+  }
+  return pt;
 });
 
 const tree = window.tree = new KDTree(points);

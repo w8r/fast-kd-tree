@@ -18,7 +18,7 @@ export default class KDTree {
 
     for (let i = 0; i < n; i++) {
       const p = points[i];
-      hvalues[i] = morton(x(p), y(p));
+      hvalues[i] = hilbert(x(p), y(p));
       order[i]  = i;
     }
     sort(order, hvalues);
@@ -135,7 +135,7 @@ function toList (nodes, order, codes, x, y) {
     const node = nodes[order[i]];
     //const cx = x(node), cy = y(node);
 
-    prev = prev.next = { code: codes[order[i]], point: node };
+    prev = prev.next = node;
   }
   prev.next = null;
   return list.next;
@@ -145,7 +145,7 @@ function toList (nodes, order, codes, x, y) {
 function sortedListToBST (list, start, end) {
   const size = end - start;
   if (size > 0) {
-    const middle = start + Math.floor(size / 2);
+    const middle = start + (size >> 1);
     const left = sortedListToBST(list, start, middle);
 
     const root = list.head;
