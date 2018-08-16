@@ -28,6 +28,7 @@ describe('fast kd-tree', () => {
     let c = 0;
     b.visit(n => c += !!n.checked);
     console.log(c);
+    //console.log(b.toString(n => n.parent))
   })
 
   it ('build from a set of points', () => {

@@ -8,6 +8,7 @@ class InternalNode {
     this.code  = code;
     this.left  = left;
     this.right = right;
+    left.parent = right.parent = this;
   }
 }
 
@@ -19,15 +20,29 @@ class Leaf {
   }
 }
 
+function build (ids, codes, first, last, nodeSize) {
+  //if (first === last) return { code: codes[first], id: ids[first] };
+  //if (last - first === 0) return new Leaf(codes[first], ids[first]);
+  if (last - first <= 10) return new Leaf(codes[first], ids.slice(first, last));
+  // if (first === last) return new Leaf(ids[first]);
+  const split = findSplit(codes, first, last);
+  const left  = build(ids, codes, first, split, nodeSize);
+  const right = build(ids, codes, split + 1, last, nodeSize);
+  //return { code: split, left, right };
+  return new InternalNode(split, left, right);
+  //return new InternalNode(left, right);
+}
+
 function build (ids, codes, first, last) {
-  if (first === last) return { code: codes[first], id: ids[first] };
-  //if (first === last) return new Leaf(codes[first], ids[first]);
+  //if (first === last) return { code: codes[first], id: ids[first] };
+  //if (last - first === 0) return new Leaf(codes[first], ids[first]);
+  if (last - first === 0) return new Leaf(codes[first], ids[first]);
   // if (first === last) return new Leaf(ids[first]);
   const split = findSplit(codes, first, last);
   const left  = build(ids, codes, first, split);
   const right = build(ids, codes, split + 1, last);
-  return { code: split, left, right };
-  //return new InternalNode(split, left, right);
+  //return { code: split, left, right };
+  return new InternalNode(split, left, right);
   //return new InternalNode(left, right);
 }
 
@@ -77,17 +92,17 @@ export default class BVH {
     const n = points.length;
     const codes = new Array(n);
     const ids = new Array(n);
-    // let minX = Infinity, minY = Infinity;
-    // for (let i = 0; i < n; i++) {
-    //   const { x, y } = points[i];
-    //   if (x < minX) minX = x;
-    //   if (y < minY) minY = y;
-    // }
+    let minX = Infinity, minY = Infinity;
+    for (let i = 0; i < n; i++) {
+      const { x, y } = points[i];
+      if (x < minX) minX = x;
+      if (y < minY) minY = y;
+    }
 
     for (let i = 0; i < n; i++) {
       const p = points[i];
-      //codes[i] = hilbert(p.x - minX, p.y - minY);
-      codes[i] = hilbert(p.x, p.y);
+      codes[i] = hilbert(p.x - minX, p.y - minY);
+      //codes[i] = hilbert(p.x, p.y);
       ids[i] = i;
     }
     sort(ids, codes);

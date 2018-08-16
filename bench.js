@@ -43,19 +43,19 @@ new Benchmark.Suite(` build from ${N} points`, options)
   const kd = kdbush(points, p => p.x, p => p.y, 1);
 // }).add('simple kd', () => {
 //   const q = new skd(points);
-// }).add('double-sort', () => {
-//   const X = new Array(points.length);
-//   const Y = new Array(points.length);
-//   const byX = new Array(points.length), byY = new Array(points.length);
-//   for (let i = 0; i < points.length; i++) {
-//     const { x, y } = points[i];
-//     X[i] = x; Y[i] = y;
-//     byX[i] = byY[i] = i;
-//   }
-//   sort(byX, X);
-//   sort(byY, Y);
-// }).add('simple q', () => {
-//   const q = new sq(points);
+}).add('double-sort', () => {
+  const X = new Array(points.length);
+  const Y = new Array(points.length);
+  const byX = new Array(points.length), byY = new Array(points.length);
+  for (let i = 0; i < points.length; i++) {
+    const { x, y } = points[i];
+    X[i] = x; Y[i] = y;
+    byX[i] = byY[i] = i;
+  }
+  sort(byX, X);
+  sort(byY, Y);
+}).add('simple q', () => {
+  const q = new sq(points);
 }).run();
 
 const Q = quadtree(points, p => p.x, p => p.y);
