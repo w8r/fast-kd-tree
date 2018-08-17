@@ -529,11 +529,12 @@
 
 
 	PHTree.prototype.walk = function walk (fn) {
-	  var stack = [this._minX, this._minY, this._maxX, this._maxY, true];
+	  var stack = [this._minX, this._minY, this._maxX, this._maxY, true, true];
 	  var Q = [this._root];
 	  while (Q.length !== 0) {
 	    var node = Q.pop();
 
+	    var hor= stack.pop();
 	    var dir= stack.pop();
 	    var ymax = stack.pop();
 	    var xmax = stack.pop();
@@ -544,15 +545,14 @@
 	      if (fn(node, xmin, ymin, xmax, ymax)) { break; }
 	      var hw = (xmax - xmin) / 2,
 	            hh = (ymax - ymin) / 2;
-	      if (node.left) {
-	        Q.push(node.left);
-	        if (dir) { stack.push(xmin, ymin, xmin + hw, ymax, !dir); }
-	        else   { stack.push(xmin, ymin, xmax, ymin + hh, !dir); }
-	      }
-	      if (node.right) {
-	        Q.push(node.right);
-	        if (dir) { stack.push(xmin + hw, ymin, xmax, ymax, !dir); }
-	        else   { stack.push(xmin, ymin + hh, xmax, ymax, !dir); }
+	      if (hor) { Q.push(node.left, node.right); }
+	      else   { Q.push(node.right, node.left); }
+	      if (dir) { // by x
+	        stack.push(xmin, ymin, xmin + hw, ymax, !dir, hor);
+	        stack.push(xmin + hw, ymin, xmax, ymax, !dir, hor);
+	      } else { // by y
+	        stack.push(xmin, ymin, xmax, ymin + hh, !dir, hor);
+	        stack.push(xmin, ymin + hh, xmax, ymax, !dir, hor);
 	      }
 	    }
 	    //if (i++ == 13) break;

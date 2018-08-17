@@ -194,14 +194,14 @@ export default class PHTree {
 
 
   walk (fn) {
-    const stack = [this._minX, this._minY, this._maxX, this._maxY, true];
+    const stack = [this._minX, this._minY, this._maxX, this._maxY, true, true];
     const Q = [this._root];
 
-    // TODO: get axis shuffle by hilbert working
     let i = 0;
     while (Q.length !== 0) {
       const node = Q.pop();
 
+      const hor  = stack.pop();
       const dir  = stack.pop();
       const ymax = stack.pop();
       const xmax = stack.pop();
@@ -212,15 +212,14 @@ export default class PHTree {
         if (fn(node, xmin, ymin, xmax, ymax)) break;
         const hw = (xmax - xmin) / 2,
               hh = (ymax - ymin) / 2;
-        if (node.left) {
-          Q.push(node.left);
-          if (dir) stack.push(xmin, ymin, xmin + hw, ymax, !dir);
-          else     stack.push(xmin, ymin, xmax, ymin + hh, !dir);
-        }
-        if (node.right) {
-          Q.push(node.right);
-          if (dir) stack.push(xmin + hw, ymin, xmax, ymax, !dir);
-          else     stack.push(xmin, ymin + hh, xmax, ymax, !dir);
+        if (hor) Q.push(node.left, node.right);
+        else     Q.push(node.right, node.left);
+        if (dir) { // by x
+          stack.push(xmin, ymin, xmin + hw, ymax, !dir, hor);
+          stack.push(xmin + hw, ymin, xmax, ymax, !dir, hor);
+        } else {   // by y
+          stack.push(xmin, ymin, xmax, ymin + hh, !dir, hor);
+          stack.push(xmin, ymin + hh, xmax, ymax, !dir, hor);
         }
       }
       //if (i++ == 13) break;
