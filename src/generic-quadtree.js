@@ -34,21 +34,4 @@ export default class QuadTree {
       this.root = insert(this.root, 0, 0, maxx - 1, maxy - 1, x, y, i);
     }
   }
-
-  // int count(Node node, int ax, int ay, int bx, int by, int x1, int y1, int x2, int y2) {
-  //   if (node == null || ax > x2 || x1 > bx || ay > y2 || y1 > by)
-  //     return 0;
-  //   if (x1 <= ax && bx <= x2 && y1 <= ay && by <= y2)
-  //     return node.count;
-
-  //   int mx = (ax + bx) >> 1;
-  //   int my = (ay + by) >> 1;
-
-  //   int res = 0;
-  //   res += count(node.bottomLeft, ax, ay, mx, my, x1, y1, x2, y2);
-  //   res += count(node.topLeft, ax, my + 1, mx, by, x1, y1, x2, y2);
-  //   res += count(node.bottomRight, mx + 1, ay, bx, my, x1, y1, x2, y2);
-  //   res += count(node.topRight, mx + 1, my + 1, bx, by, x1, y1, x2, y2);
-  //   return res;
-  // }
 }

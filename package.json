@@ -1,11 +1,11 @@
 {
-  "name": "fast-kd-tree",
+  "name": "ph-tree",
   "version": "1.0.0",
-  "description": "Fast static kd-tree",
+  "description": "Fast static point hierarchy for particle simulations",
   "main": "index.js",
   "scripts": {
-    "test": "mocha -r reify test.js",
-    "lint": "eslint index.js",
+    "test": "mocha -r reify test/*.test.js",
+    "lint": "eslint src/phtree.js src/sort.js",
     "bench": "node -r reify bench.js",
     "build": "rollup -c",
     "start": "rollup -cw"
@@ -16,6 +16,7 @@
   },
   "keywords": [
     "kd-tree",
+    "bvh",
     "spatial-partitioning",
     "spatial-index",
     "binary-tree"
@@ -37,8 +38,9 @@
     "reify": "^0.17.2",
     "rollup": "^0.63.5",
     "rollup-plugin-buble": "^0.19.2",
-    "rollup-plugin-commonjs": "^9.1.4",
-    "rollup-plugin-node-resolve": "^3.3.0"
+    "rollup-plugin-commonjs": "^9.1.5",
+    "rollup-plugin-node-resolve": "^3.3.0",
+    "seedrandom": "^2.4.4"
   },
   "dependencies": {
     "morton": "^1.0.2"

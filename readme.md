@@ -1,4 +1,4 @@
-# Fast KD-tree construction example
+# Fast spatial-subdivision tree construction example
 
 ## License
 

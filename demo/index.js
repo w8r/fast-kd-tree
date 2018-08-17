@@ -1,4 +1,4 @@
-import KDTree from './index';
+import Tree from '../src/phtree';
 import { scaleLinear, interpolateRgb, polygonHull } from 'd3';
 
 const screenWidth  = document.documentElement.clientWidth;
@@ -16,7 +16,7 @@ canvas.style.height = screenHeight + 'px';
 const w = canvas.width = screenWidth * devicePixelRatio;
 const h = canvas.height = screenHeight * devicePixelRatio;
 
-const N = 100;
+const N = 500;
 
 // const points = new Array(N).fill(0).map(() => {
 //   return {
@@ -25,18 +25,19 @@ const N = 100;
 //   };
 // });
 const cells = Math.sqrt(N) | 0;
-let x = 0, y = 0;
+let x = w / cells / 2, y = -h / cells / 2;
 const points = new Array(N).fill(0).map((_, i) => {
-  const pt = { x, y };
-  x += w / cells;
   if (i % cells === 0) {
     y += h / cells;
-    x = 0;
+    x = w / cells / 2;
   }
+  const pt = { x, y };
+  x += w / cells;
   return pt;
 });
 
-const tree = window.tree = new KDTree(points);
+
+const tree = window.tree = new Tree(points);
 const leftColor = scaleLinear().domain([0, Math.floor(N / 2)])
       .interpolate(interpolateRgb)
       .range(['orange', 'red']);
@@ -98,27 +99,27 @@ function render() {
   ctx.globalAlpha = 0.2;
   const Q = [tree._root];
   const mid = tree._root.code;
-  while (Q.length !== 0) {
-    const node = Q.pop();
-    if (node) {
-      const pts = getPoints(node);
-      const hull = polygonHull(pts.map(({x,y}) => [x, y]));
-      if (hull) {
-        ctx.beginPath();
-        ctx.fillStyle = node.code < mid ? 'blue' : 'orange';
-        // (!node.parent || node.parent.left === node) ? 'blue' : 'orange';
-        ctx.moveTo(hull[0][0], hull[0][1]);
-        for (let i = 1; i < hull.length; i++) {
-          const hp = hull[i];
-          ctx.lineTo(hp[0], hp[1]);
-        }
-        ctx.lineTo(hull[0][0], hull[0][1]);
-        ctx.closePath();
-        ctx.fill();
-      }
-      Q.unshift(node.left, node.right);
-    }
-  }
+  // while (Q.length !== 0) {
+  //   const node = Q.pop();
+  //   if (node) {
+  //     const pts = getPoints(node);
+  //     const hull = polygonHull(pts.map(({x,y}) => [x, y]));
+  //     if (hull) {
+  //       ctx.beginPath();
+  //       ctx.fillStyle = node.code < mid ? 'blue' : 'orange';
+  //       // (!node.parent || node.parent.left === node) ? 'blue' : 'orange';
+  //       ctx.moveTo(hull[0][0], hull[0][1]);
+  //       for (let i = 1; i < hull.length; i++) {
+  //         const hp = hull[i];
+  //         ctx.lineTo(hp[0], hp[1]);
+  //       }
+  //       ctx.lineTo(hull[0][0], hull[0][1]);
+  //       ctx.closePath();
+  //       ctx.fill();
+  //     }
+  //     Q.unshift(node.left, node.right);
+  //   }
+  // }
   ctx.globalAlpha = 1;
 
   ctx.fillStyle = 'orange';
