@@ -2,7 +2,14 @@ import sort from './sort';
 import hilbert from './hilbert';
 import morton from 'morton';
 
-export default class KDTree {
+
+/**
+ * This is a very interesting decomposition:
+ * It splits by equal spans on the space-filling curve.
+ * It's super-fast, but the zones are of irregular shapes (tetris-like).
+ * It gets worse if you use morton curve.
+ */
+export default class SFCTree {
   constructor (points, x = p => p.x, y = p => p.y) {
     this._x = x;
     this._y = y;
@@ -18,7 +25,7 @@ export default class KDTree {
 
     for (let i = 0; i < n; i++) {
       const p = points[i];
-      hvalues[i] = morton(x(p), y(p));
+      hvalues[i] = hilbert(x(p), y(p));
       order[i]  = i;
     }
     sort(order, hvalues);

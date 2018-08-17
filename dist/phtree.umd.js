@@ -168,7 +168,13 @@
 	  return qsort(coords, codes, 0, coords.length - 1);
 	}
 
-	var KDTree = function KDTree (points, x, y) {
+	/**
+	 * This is a very interesting decomposition:
+	 * It splits by equal spans on the space-filling curve.
+	 * It's super-fast, but the zones are of irregular shapes (tetris-like).
+	 * It gets worse if you use morton curve.
+	 */
+	var SFCTree = function SFCTree (points, x, y) {
 	  if ( x === void 0 ) x = function (p) { return p.x; };
 	  if ( y === void 0 ) y = function (p) { return p.y; };
 
@@ -178,7 +184,7 @@
 	  //this.build(points);
 	};
 
-	KDTree.prototype.buildHilbert = function buildHilbert (points) {
+	SFCTree.prototype.buildHilbert = function buildHilbert (points) {
 	  var n     = points.length;
 	  var hvalues = new Array(n);
 	  var order = new Array(n);
@@ -186,7 +192,7 @@
 
 	  for (var i = 0; i < n; i++) {
 	    var p = points[i];
-	    hvalues[i] = morton_1(x(p), y(p));
+	    hvalues[i] = hilbert(x(p), y(p));
 	    order[i]= i;
 	  }
 	  sort(order, hvalues);
@@ -240,7 +246,7 @@
 	// }
 
 
-	KDTree.prototype.query = function query (xmin, ymin, xmax, ymax) {
+	SFCTree.prototype.query = function query (xmin, ymin, xmax, ymax) {
 	    var this$1 = this;
 
 	  var qmin = morton_1(xmin, ymin), qmax = morton_1(xmax, ymax);
@@ -275,7 +281,7 @@
 	};
 
 
-	KDTree.prototype.range = function range (low, high, fn, ctx) {
+	SFCTree.prototype.range = function range (low, high, fn, ctx) {
 	    var this$1 = this;
 
 	  var Q = [];
@@ -586,7 +592,7 @@
 	  }
 	}
 
-	PHTree.KD = KDTree;
+	PHTree.SFCTree = SFCTree;
 
 	return PHTree;
 

@@ -1,7 +1,7 @@
 import morton from 'morton';
 import hilbert from './hilbert';
 import sort from './sort';
-import KD from './hilbert-bst';
+import SFCTree from './sfc-tree';
 
 class InternalNode {
   constructor(code, left, right) {
@@ -244,4 +244,4 @@ function row (root, prefix, isTail, out, printNode) {
   }
 }
 
-PHTree.KD = KD;
+PHTree.SFCTree = SFCTree;
