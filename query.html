@@ -44,10 +44,10 @@ svg.attr("width", width);
 svg.attr("height", height);
 var selected;
 
-var random = Math.random,
+var random = Math.random, n = 100,
     //data = d3.range(1200).map(function() { return [random() * width, random() * height]; });
-    data = new Array(2000).fill(0).map((_, i) => {
-      return i < 1000 ?
+    data = new Array(n).fill(0).map((_, i) => {
+      return i < (n / 2) ?
         [width / 4 * random(), height / 4 * random()] :
         [width * random(), height * random()];
     });
@@ -81,8 +81,8 @@ svg.selectAll(".node")
     .attr("class", "node")
     .attr("x", function(d) { return d.x0; })
     .attr("y", function(d) { return d.y0; })
-    .attr("width", function(d) { return d.y1 - d.y0; })
-    .attr("height", function(d) { return d.x1 - d.x0; });
+    .attr("width", function(d) { return d.x1 - d.x0; })
+    .attr("height", function(d) { return d.y1 - d.y0; });
 
 var point = svg.selectAll(".point")
   .data(data)
@@ -125,11 +125,11 @@ function search(tree, x0, y0, x3, y3) {
 // Collapse the quadtree into an array of rectangles.
 function nodes(tree) {
   var nodes = [];
-  // quadtree.visit(function(node, x0, y0, x1, y1) {
-  //   node.x0 = x0, node.y0 = y0;
-  //   node.x1 = x1, node.y1 = y1;
-  //   nodes.push(node);
-  // });
+  tree.walk((node, x0, y0, x1, y1) => {
+    node.x0 = x0, node.y0 = y0;
+    node.x1 = x1, node.y1 = y1;
+    nodes.push(node);
+  });
   return nodes;
 }
 

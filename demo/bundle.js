@@ -440,7 +440,8 @@
 
 	  var n   = points.length;
 	  var codes = new Uint32Array(n);
-	  var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+	  var minX = Infinity, minY = Infinity,
+	      maxX = -Infinity, maxY = -Infinity;
 	  var p, i, x, y;
 
 	  this._x = getX;
@@ -527,13 +528,48 @@
 	};
 
 
-	PHTree.prototype.query = function query (x0, y0, x1, y1) {
-	  var result = [];
-	  this.visit(function (node) {
+	PHTree.prototype.walk = function walk (fn) {
+	  var stack = [this._minX, this._minY, this._maxX, this._maxY, true];
+	  var Q = [this._root];
+	  while (Q.length !== 0) {
+	    var node = Q.pop();
 
-	  });
-	  return result;
+	    var dir= stack.pop();
+	    var ymax = stack.pop();
+	    var xmax = stack.pop();
+	    var ymin = stack.pop();
+	    var xmin = stack.pop();
+
+	    if (node) {
+	      if (fn(node, xmin, ymin, xmax, ymax)) { break; }
+	      var hw = (xmax - xmin) / 2,
+	            hh = (ymax - ymin) / 2;
+	      if (node.left) {
+	        Q.push(node.left);
+	        if (dir) { stack.push(xmin, ymin, xmin + hw, ymax, !dir); }
+	        else   { stack.push(xmin, ymin, xmax, ymin + hh, !dir); }
+	      }
+	      if (node.right) {
+	        Q.push(node.right);
+	        if (dir) { stack.push(xmin + hw, ymin, xmax, ymax, !dir); }
+	        else   { stack.push(xmin, ymin + hh, xmax, ymax, !dir); }
+	      }
+	    }
+	    //if (i++ == 13) break;
+	  }
+	  return this;
 	};
+
+
+	PHTree.prototype.query = function query (x0, y0, x1, y1) {
+	  var res = [];
+	  this.walk(function (n, xmin, ymin, xmax, ymax) {
+	    if (n.data) { res.push(n.data); }
+	    return !(xmax > x0 && xmin < x1) && (ymax > y0 && ymin < y1);
+	  });
+	  return res;
+	};
+
 
 	PHTree.prototype.map = function map (fn, ctx) {
 	  var res = [];

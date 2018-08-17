@@ -105,7 +105,8 @@ export default class PHTree {
   constructor(points, getX = defaultX, getY = defaultY, bucketSize = 0, sfc = 'hilbert') {
     const n     = points.length;
     const codes = new Uint32Array(n);
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    let minX = Infinity, minY = Infinity,
+        maxX = -Infinity, maxY = -Infinity;
     let p, i, x, y;
 
     this._x = getX;
@@ -192,13 +193,51 @@ export default class PHTree {
   }
 
 
-  query (x0, y0, x1, y1) {
-    const result = [], Q = [];
-    this.visit((node) => {
+  walk (fn) {
+    const stack = [this._minX, this._minY, this._maxX, this._maxY, true];
+    const Q = [this._root];
 
-    });
-    return result;
+    // TODO: get axis shuffle by hilbert working
+    let i = 0;
+    while (Q.length !== 0) {
+      const node = Q.pop();
+
+      const dir  = stack.pop();
+      const ymax = stack.pop();
+      const xmax = stack.pop();
+      const ymin = stack.pop();
+      const xmin = stack.pop();
+
+      if (node) {
+        if (fn(node, xmin, ymin, xmax, ymax)) break;
+        const hw = (xmax - xmin) / 2,
+              hh = (ymax - ymin) / 2;
+        if (node.left) {
+          Q.push(node.left);
+          if (dir) stack.push(xmin, ymin, xmin + hw, ymax, !dir);
+          else     stack.push(xmin, ymin, xmax, ymin + hh, !dir);
+        }
+        if (node.right) {
+          Q.push(node.right);
+          if (dir) stack.push(xmin + hw, ymin, xmax, ymax, !dir);
+          else     stack.push(xmin, ymin + hh, xmax, ymax, !dir);
+        }
+      }
+      //if (i++ == 13) break;
+    }
+    return this;
   }
+
+
+  query (x0, y0, x1, y1) {
+    const res = [];
+    this.walk((n, xmin, ymin, xmax, ymax) => {
+      if (n.data) res.push(n.data);
+      return !(xmax > x0 && xmin < x1) && (ymax > y0 && ymin < y1);
+    });
+    return res;
+  }
+
 
   map (fn, ctx) {
     const res = [];
