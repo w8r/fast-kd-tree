@@ -1,9 +1,10 @@
 import Benchmark from 'benchmark';
 import { quadtree } from 'd3';
 import kdbush from 'kdbush';
-import KDTree from './src/hilbert-bst.js';
+import SFC from './src/sfc-tree.js';
 import sort from './src/sort';
 import sq from './src/generic-quadtree';
+import LQ from './src/linear-quadtree';
 import skd from './src/kdtree';
 import PH from './dist/phtree.umd';
 import seedrandom from 'seedrandom';
@@ -53,8 +54,10 @@ const options = {
     sort(byY, Y);
   }).add('simple q', () => {
     const q = new sq(points);
-  }).add('hilbert range-tree', () => {
-    const kd = new KDTree(points, p => p.x, p => p.y);
+  }).add('linear-quadtree', () => {
+    const lq = new LQ(points);
+  }).add('sfc tree', () => {
+    const sfc = new SFC(points, p => p.x, p => p.y);
   }).run();
 })();
 
