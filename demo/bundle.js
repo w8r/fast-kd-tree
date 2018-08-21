@@ -375,11 +375,12 @@
 	    return new BucketLeaf(codes[first], bucket);
 	  }
 	  var split = findSplit(codes, first, last);
-	  var left  = build(data, ids, codes, first, split, bucketSize);
-	  var right = build(data, ids, codes, split + 1, last, bucketSize);
-	  // const node = [left, right];
-	  // node.code = split;
-	  // return node;
+	  var left  = buildBuckets(data, ids, codes, first, split, bucketSize);
+	  var right = buildBuckets(data, ids, codes, split + 1, last, bucketSize);
+
+	  // const nd = [left, right];
+	  // nd.left = left; nd.right = right;
+	  // return nd;
 	  return new InternalNode(split, left, right);
 	}
 
@@ -389,6 +390,9 @@
 	  var split = findSplit(codes, first, last);
 	  var left  = build(data, ids, codes, first, split);
 	  var right = build(data, ids, codes, split + 1, last);
+	  // const nd = [left, right];
+	  // nd.left = left; nd.right = right;
+	  // return nd;
 	  return new InternalNode(split, left, right);
 	}
 
@@ -493,8 +497,9 @@
 	  if (bucketSize === 0) {
 	    this._root = build(points, ids, codes, 0, n - 1);
 	  } else {
-	    this._root = buildBuckets(points, ids, codes, n - 1, bucketSize);
+	    this._root = buildBuckets(points, ids, codes, 0, n - 1, bucketSize);
 	  }
+	  this._bucketSize = bucketSize;
 	};
 
 

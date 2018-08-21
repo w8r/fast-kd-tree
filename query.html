@@ -47,14 +47,14 @@ svg.attr("width", width);
 svg.attr("height", height);
 var selected;
 
-var random = Math.random, n = 500;
+var random = Math.random, n = 5000;
 
-var data = d3.range(n).map(function() { return [random() * width, random() * height]; });
-// var data = new Array(n).fill(0).map((_, i) => {
-//   return i < (n / 2) ?
-//     [width / 4 * random(), height / 4 * random()] :
-//     [width * random(), height * random()];
-// });
+// var data = d3.range(n).map(function() { return [random() * width, random() * height]; });
+var data = new Array(n).fill(0).map((_, i) => {
+  return i < (n / 2) ?
+    [width / 4 * random(), height / 4 * random()] :
+    [width * random(), height * random()];
+});
 
 // const cells = Math.sqrt(n) | 0;
 // let x = width / cells / 2, y = -height / cells / 2;
@@ -68,8 +68,9 @@ var data = d3.range(n).map(function() { return [random() * width, random() * hei
 //   return pt;
 // });
 
+const nodeSize = Math.sqrt(n) | 0;
 console.time('build');
-var tree = new phtree(data, p => p[0], p => p[1], 0, 'hilbert');
+var tree = new phtree(data, p => p[0], p => p[1], nodeSize, 'hilbert');
 console.timeEnd('build');
 console.time('quadtree');
 var quadtree = new d3.quadtree(data, p => p[0], p => p[1]);
@@ -79,10 +80,7 @@ svg
   .append('path')
   .attr('d', d3.line()
     .x(d => d[0])
-    .y(d => d[1])(
-      tree.map(d => d)
-        .filter(d => d.data)
-        .map(d => d.data)))
+    .y(d => d[1])(getData(tree)))
   .attr('stroke-width', 2)
   .attr('fill', 'none')
   .attr('stroke', 'red')
@@ -106,7 +104,7 @@ var point = svg.selectAll(".point")
     .attr("class", "point")
     .attr("cx", function(d) { return d[0]; })
     .attr("cy", function(d) { return d[1]; })
-    .attr("r", 2);
+    .attr("r", 0.2);
 
 svg.append("g")
     .attr("class", "brush")
@@ -185,8 +183,20 @@ function getTightBoxes(node) {
   let xmin = tree._maxX, ymin = tree._maxY,
       xmax = tree._minX, ymax = tree._minY;
   if (node.data) {
-    xmin = xmax = tree._x(node.data);
-    ymin = ymax = tree._y(node.data);
+    //const data = node.data;
+    if (tree._bucketSize !== 0) {
+      for (let i = 0; i < node.data.length; i++) {
+        const data = node.data[i];
+        const x = tree._x(data), y = tree._y(data);
+        xmin = Math.min(xmin, x);
+        ymin = Math.min(ymin, y);
+        xmax = Math.max(xmax, x);
+        ymax = Math.max(ymax, y);
+      }
+    } else {
+      xmin = xmax = tree._x(node.data);
+      ymin = ymax = tree._y(node.data);
+    }
   } else {
     let child = node.left;
     if (child) {
@@ -208,6 +218,18 @@ function getTightBoxes(node) {
   node.y0 = ymin;
   node.x1 = xmax;
   node.y1 = ymax;
+}
+
+
+function getData(tree) {
+  const data = [];
+  tree.preOrder(n => {
+    if (n.data) {
+      if (tree._bucketSize !== 0) data.push.apply(data, n.data);
+      else data.push(n.data);
+    }
+  });
+  return data;
 }
 
 

@@ -44,11 +44,12 @@ function buildBuckets (data, ids, codes, first, last, bucketSize) {
     return new BucketLeaf(codes[first], bucket);
   }
   const split = findSplit(codes, first, last);
-  const left  = build(data, ids, codes, first, split, bucketSize);
-  const right = build(data, ids, codes, split + 1, last, bucketSize);
-  // const node = [left, right];
-  // node.code = split;
-  // return node;
+  const left  = buildBuckets(data, ids, codes, first, split, bucketSize);
+  const right = buildBuckets(data, ids, codes, split + 1, last, bucketSize);
+
+  // const nd = [left, right];
+  // nd.left = left; nd.right = right;
+  // return nd;
   return new InternalNode(split, left, right);
 }
 
@@ -58,6 +59,9 @@ function build (data, ids, codes, first, last) {
   const split = findSplit(codes, first, last);
   const left  = build(data, ids, codes, first, split);
   const right = build(data, ids, codes, split + 1, last);
+  // const nd = [left, right];
+  // nd.left = left; nd.right = right;
+  // return nd;
   return new InternalNode(split, left, right);
 }
 
@@ -205,8 +209,9 @@ export default class PHTree {
     if (bucketSize === 0) {
       this._root = build(points, ids, codes, 0, n - 1);
     } else {
-      this._root = buildBuckets(points, ids, codes, n - 1, bucketSize);
+      this._root = buildBuckets(points, ids, codes, 0, n - 1, bucketSize);
     }
+    this._bucketSize = bucketSize;
   }
 
 
