@@ -1,5 +1,6 @@
 import morton from 'morton';
 import hilbert from './hilbert';
+//import hilbert from 'morton';
 import sort from './sort';
 import SFCTree from './sfc-tree';
 
@@ -10,6 +11,11 @@ class InternalNode {
     this.left  = left;
     this.right = right;
     left.parent = right.parent = this;
+
+    this.x0 = Math.min(left.x0, right.x0);
+    this.y0 = Math.min(left.y0, right.y0);
+    this.x1 = Math.max(left.x1, right.x1);
+    this.y1 = Math.max(left.y1, right.y1);
   }
 }
 
@@ -17,6 +23,8 @@ class Leaf {
   constructor (code, data) {
     this.code = code;
     this.data = data;
+    this.x0 = this.x1 = data[0];
+    this.y0 = this.y1 = data[1];
   }
 }
 
@@ -30,15 +38,17 @@ class BucketLeaf {
 
 function buildBuckets (data, ids, codes, first, last, bucketSize) {
   if (last - first <= bucketSize) {
-    return new BucketLeaf(codes[first], ids.slice(first, last).map(i => data[i]));
+    const bucket = new Array(last - first);
+    for (let i = first, j = 0; i < last; i++, j++) bucket[j] = data[ids[i]];
+    return new BucketLeaf(codes[first], bucket);
   }
   const split = findSplit(codes, first, last);
   const left  = build(data, ids, codes, first, split, bucketSize);
   const right = build(data, ids, codes, split + 1, last, bucketSize);
-  const node = [left, right];
-  node.code = split;
-  return node;
-  //return new InternalNode(split, left, right);
+  // const node = [left, right];
+  // node.code = split;
+  // return node;
+  return new InternalNode(split, left, right);
 }
 
 
@@ -47,16 +57,13 @@ function build (data, ids, codes, first, last) {
   const split = findSplit(codes, first, last);
   const left  = build(data, ids, codes, first, split);
   const right = build(data, ids, codes, split + 1, last);
-  // const node = [left, right];
-  // node.code = split;
-  // return node;
   return new InternalNode(split, left, right);
 }
 
 
 function __clz(m) {
   let c = 1 << 31;
-  for (let i = 0; i < 32; i += 1) {
+  for (let i = 0; i < 31; i += 1) {
     if (c & m) return i;
     c >>>= 1;
   }
@@ -162,17 +169,15 @@ export default class PHTree {
       const node = Q.pop();
       if (node) {
         if (fn.call(ctx, node)) break;
-        if (!node.data) {
-          Q.push(node.left);
-          Q.push(node.right);
-        }
+        if (node.left)  Q.push(node.left);
+        if (node.right) Q.push(node.right);
       }
     }
     return this;
   }
 
 
-  visitAfter (fn, ctx) {
+  inOrder (fn, ctx) {
     let current = this._root;
     const Q = [];  /* Initialize stack s */
     let done = false;
@@ -193,15 +198,51 @@ export default class PHTree {
   }
 
 
+  preOrder (fn, ctx) {
+    // Create an empty stack and push root to it
+    const Q = [this._root];
+    while (Q.length !== 0)  {
+      const node = Q.pop();
+      fn.call(ctx, node);
+      if (node.right) Q.push(node.right);
+      if (node.left)  Q.push(node.left);
+    }
+    return this;
+  }
+
+
+  postOrder (fn, ctx) {
+    const Q = [];
+    let node = this._root, last;
+    do {
+      while (node) {
+        if (node.right) Q.push(node.right);
+        Q.push(node);
+        node = node.left;
+      }
+      node = Q.pop();
+      last = Q.length - 1;
+      if (node.right && Q[last] === node.right) {
+        Q[last] = node;
+        node = node.right;
+      } else {
+        fn.call(ctx, node);
+        node = null;
+      }
+    } while (Q.length !== 0);
+
+    return this;
+  }
+
+
   walk (fn) {
-    const stack = [this._minX, this._minY, this._maxX, this._maxY, true, true];
+    const stack = [this._minX, this._minY, this._maxX, this._maxY, 0];
     const Q = [this._root];
 
-    let i = 0;
+    let i = 0, j = 0;
     while (Q.length !== 0) {
       const node = Q.pop();
 
-      const hor  = stack.pop();
       const dir  = stack.pop();
       const ymax = stack.pop();
       const xmax = stack.pop();
@@ -212,17 +253,19 @@ export default class PHTree {
         if (fn(node, xmin, ymin, xmax, ymax)) break;
         const hw = (xmax - xmin) / 2,
               hh = (ymax - ymin) / 2;
-        if (hor) Q.push(node.left, node.right);
-        else     Q.push(node.right, node.left);
-        if (dir) { // by x
-          stack.push(xmin, ymin, xmin + hw, ymax, !dir, hor);
-          stack.push(xmin + hw, ymin, xmax, ymax, !dir, hor);
-        } else {   // by y
-          stack.push(xmin, ymin, xmax, ymin + hh, !dir, hor);
-          stack.push(xmin, ymin + hh, xmax, ymax, !dir, hor);
+        //const nextDir = dir > 0 ? (dir - 1) : 3;
+        const nextDir = (dir + 1) % 2;
+
+        Q.push(node.left, node.right)
+
+        if (nextDir) { // by x
+          stack.push(xmin, ymin, xmin + hw, ymax, nextDir);
+          stack.push(xmin + hw, ymin, xmax, ymax, nextDir);
+        } else {       // by y
+          stack.push(xmin, ymin + hh, xmax, ymax, nextDir);
+          stack.push(xmin, ymin, xmax, ymin + hh, nextDir);
         }
       }
-      //if (i++ == 13) break;
     }
     return this;
   }
@@ -240,7 +283,7 @@ export default class PHTree {
 
   map (fn, ctx) {
     const res = [];
-    this.visitAfter(node => {
+    this.inOrder(node => {
       res.push(fn.call(ctx, node));
     });
     return res;
@@ -256,6 +299,13 @@ export default class PHTree {
     const out = [];
     row(this._root, '', true, (v) => out.push(v), printNode);
     return out.join('');
+  }
+
+
+  size () {
+    let i = 0;
+    this.visit(() => { i++; });
+    return i;
   }
 }
 
@@ -275,8 +325,8 @@ function height (node) {
  */
 function row (root, prefix, isTail, out, printNode) {
   if (root) {
-    out(`${ prefix }${ isTail ? '└── ' : '├── ' }${ printNode(root) }\n`);
-    const indent = prefix + (isTail ? '    ' : '│   ');
+    out(prefix + (isTail ? '^-- ' : '|-- ') + printNode(root) + '\n');
+    const indent = prefix + (isTail ? '    ' : '|   ');
     if (root.left)  row(root.left,  indent, false, out, printNode);
     if (root.right) row(root.right, indent, true,  out, printNode);
   }

@@ -33,9 +33,12 @@ body, html {
 
 </style>
 <svg width="960" height="500"></svg>
-<script src="https://d3js.org/d3.v4.min.js"></script>
+<!-- <script src="https://d3js.org/d3.v4.min.js"></script> -->
+<script type="text/javascript" src="node_modules/d3/dist/d3.min.js"></script>
+<script type="text/javascript" src="node_modules/seedrandom/seedrandom.min.js"></script>
 <script type="text/javascript" src="dist/phtree.umd.js"></script>
 <script>
+Math.seedrandom('query');
 
 var svg = d3.select("svg");
 var width  = document.documentElement.clientWidth;
@@ -44,13 +47,26 @@ svg.attr("width", width);
 svg.attr("height", height);
 var selected;
 
-var random = Math.random, n = 100,
-    //data = d3.range(1200).map(function() { return [random() * width, random() * height]; });
-    data = new Array(n).fill(0).map((_, i) => {
-      return i < (n / 2) ?
-        [width / 4 * random(), height / 4 * random()] :
-        [width * random(), height * random()];
-    });
+var random = Math.random, n = 10000;
+
+var data = d3.range(n).map(function() { return [random() * width, random() * height]; });
+// var data = new Array(n).fill(0).map((_, i) => {
+//   return i < (n / 2) ?
+//     [width / 4 * random(), height / 4 * random()] :
+//     [width * random(), height * random()];
+// });
+
+// const cells = Math.sqrt(n) | 0;
+// let x = width / cells / 2, y = -height / cells / 2;
+// const data = new Array(n).fill(0).map((_, i) => {
+//   if (i % cells === 0) {
+//     y += height / cells;
+//     x = width / cells / 2;
+//   }
+//   const pt = [ x, y ];
+//   x += width / cells;
+//   return pt;
+// });
 
 console.time('build');
 var tree = new phtree(data, p => p[0], p => p[1], 0, 'hilbert');
@@ -105,6 +121,16 @@ function brushed() {
   point.classed("point--selected", function(d) { return d.selected; });
 }
 
+function clear() {
+  data.map(p => p.scanned = p.selected = false);
+  show();
+}
+
+function show () {
+  point.classed("point--selected", function(d) { return d.selected; });
+  point.classed("point--scanned", function(d) { return d.scanned; });
+}
+
 // Find the nodes within the specified rectangle.
 function search(tree, x0, y0, x3, y3) {
   tree.query(x0, y0, x3, y3).map((point) => {
@@ -125,11 +151,13 @@ function search(tree, x0, y0, x3, y3) {
 // Collapse the quadtree into an array of rectangles.
 function nodes(tree) {
   var nodes = [];
-  tree.walk((node, x0, y0, x1, y1) => {
-    node.x0 = x0, node.y0 = y0;
-    node.x1 = x1, node.y1 = y1;
-    nodes.push(node);
-  });
+  // tree.walk((node, x0, y0, x1, y1) => {
+  //   node.x0 = x0, node.y0 = y0;
+  //   node.x1 = x1, node.y1 = y1;
+  //   nodes.push(node);
+  // });
+  //tree.postOrder(getTightBoxes);
+  tree.visit(n => { if (!n.data) nodes.push(n); });
   return nodes;
 }
 
@@ -141,5 +169,95 @@ function visit (n, fn) {
     visit(n.right, fn);
   }
 }
+
+
+function accumulate(node) {
+  let mass = 0;
+  if (node.data) mass += 1; // or get mass otherwise
+  else {
+    if (node.left && node.left.mass)  mass += node.left.mass;
+    if (node.left && node.right.mass) mass += node.right.mass;
+  }
+  node.mass = mass;
+}
+
+function getTightBoxes(node) {
+  let xmin = tree._maxX, ymin = tree._maxY,
+      xmax = tree._minX, ymax = tree._minY;
+  if (node.data) {
+    xmin = xmax = tree._x(node.data);
+    ymin = ymax = tree._y(node.data);
+  } else {
+    let child = node.left;
+    if (child) {
+      xmin = Math.min(xmin, child.x0);
+      ymin = Math.min(ymin, child.y0);
+      xmax = Math.max(xmax, child.x1);
+      ymax = Math.max(ymax, child.y1);
+    }
+    child = node.right;
+    if (child) {
+      xmin = Math.min(xmin, child.x0);
+      ymin = Math.min(ymin, child.y0);
+      xmax = Math.max(xmax, child.x1);
+      ymax = Math.max(ymax, child.y1);
+    }
+  }
+
+  node.x0 = xmin;
+  node.y0 = ymin;
+  node.x1 = xmax;
+  node.y1 = ymax;
+}
+
+
+//tree.postOrder(accumulate);
+
+// console.time('d');
+// (function calc(tree) {
+//   const Q = [tree._root];
+
+//     let n;
+//     while (Q.length !== 0) {
+//       n = Q.pop();
+//       if (n.left) Q.push(n.left);
+//       if (n.right) Q.push(n.right);
+
+// const node = n;
+// let xmin = tree._maxX, ymin = tree._maxY,
+//       xmax = tree._minX, ymax = tree._minY;
+//   if (node.data) {
+//     xmin = xmax = tree._x(node.data);
+//     ymin = ymax = tree._y(node.data);
+//   } else {
+//     let child = node.left;
+//     if (child) {
+//       xmin = Math.min(xmin, child.x0);
+//       ymin = Math.min(ymin, child.y0);
+//       xmax = Math.max(xmax, child.x1);
+//       ymax = Math.max(ymax, child.y1);
+//     }
+//     child = node.right;
+//     if (child) {
+//       xmin = Math.min(xmin, child.x0);
+//       ymin = Math.min(ymin, child.y0);
+//       xmax = Math.max(xmax, child.x1);
+//       ymax = Math.max(ymax, child.y1);
+//     }
+//   }
+
+//   node.x0 = xmin;
+//   node.y0 = ymin;
+//   node.x1 = xmax;
+//   node.y1 = ymax;
+
+//     }
+
+// })(tree)
+// console.timeEnd('d');
+
+console.time('bbox');
+tree.postOrder(getTightBoxes);
+console.timeEnd('bbox');
 
 </script>

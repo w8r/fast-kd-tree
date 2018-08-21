@@ -347,11 +347,18 @@
 	  this.left= left;
 	  this.right = right;
 	  left.parent = right.parent = this;
+
+	  this.x0 = Math.min(left.x0, right.x0);
+	  this.y0 = Math.min(left.y0, right.y0);
+	  this.x1 = Math.max(left.x1, right.x1);
+	  this.y1 = Math.max(left.y1, right.y1);
 	};
 
 	var Leaf = function Leaf (code, data) {
 	  this.code = code;
 	  this.data = data;
+	  this.x0 = this.x1 = data[0];
+	  this.y0 = this.y1 = data[1];
 	};
 
 	var BucketLeaf = function BucketLeaf (code, data) {
@@ -362,15 +369,17 @@
 
 	function buildBuckets (data, ids, codes, first, last, bucketSize) {
 	  if (last - first <= bucketSize) {
-	    return new BucketLeaf(codes[first], ids.slice(first, last).map(function (i) { return data[i]; }));
+	    var bucket = new Array(last - first);
+	    for (var i = first, j = 0; i < last; i++, j++) { bucket[j] = data[ids[i]]; }
+	    return new BucketLeaf(codes[first], bucket);
 	  }
 	  var split = findSplit(codes, first, last);
 	  var left  = build(data, ids, codes, first, split, bucketSize);
 	  var right = build(data, ids, codes, split + 1, last, bucketSize);
-	  var node = [left, right];
-	  node.code = split;
-	  return node;
-	  //return new InternalNode(split, left, right);
+	  // const node = [left, right];
+	  // node.code = split;
+	  // return node;
+	  return new InternalNode(split, left, right);
 	}
 
 
@@ -379,16 +388,13 @@
 	  var split = findSplit(codes, first, last);
 	  var left  = build(data, ids, codes, first, split);
 	  var right = build(data, ids, codes, split + 1, last);
-	  // const node = [left, right];
-	  // node.code = split;
-	  // return node;
 	  return new InternalNode(split, left, right);
 	}
 
 
 	function __clz(m) {
 	  var c = 1 << 31;
-	  for (var i = 0; i < 32; i += 1) {
+	  for (var i = 0; i < 31; i += 1) {
 	    if (c & m) { return i; }
 	    c >>>= 1;
 	  }
@@ -497,17 +503,15 @@
 	    var node = Q.pop();
 	    if (node) {
 	      if (fn.call(ctx, node)) { break; }
-	      if (!node.data) {
-	        Q.push(node.left);
-	        Q.push(node.right);
-	      }
+	      if (node.left){ Q.push(node.left); }
+	      if (node.right) { Q.push(node.right); }
 	    }
 	  }
 	  return this;
 	};
 
 
-	PHTree.prototype.visitAfter = function visitAfter (fn, ctx) {
+	PHTree.prototype.inOrder = function inOrder (fn, ctx) {
 	  var current = this._root;
 	  var Q = [];/* Initialize stack s */
 	  var done = false;
@@ -528,13 +532,49 @@
 	};
 
 
+	PHTree.prototype.preOrder = function preOrder (fn, ctx) {
+	  // Create an empty stack and push root to it
+	  var Q = [this._root];
+	  while (Q.length !== 0){
+	    var node = Q.pop();
+	    fn.call(ctx, node);
+	    if (node.right) { Q.push(node.right); }
+	    if (node.left){ Q.push(node.left); }
+	  }
+	  return this;
+	};
+
+
+	PHTree.prototype.postOrder = function postOrder (fn, ctx) {
+	  var Q = [];
+	  var node = this._root, last;
+	  do {
+	    while (node) {
+	      if (node.right) { Q.push(node.right); }
+	      Q.push(node);
+	      node = node.left;
+	    }
+	    node = Q.pop();
+	    last = Q.length - 1;
+	    if (node.right && Q[last] === node.right) {
+	      Q[last] = node;
+	      node = node.right;
+	    } else {
+	      fn.call(ctx, node);
+	      node = null;
+	    }
+	  } while (Q.length !== 0);
+
+	  return this;
+	};
+
+
 	PHTree.prototype.walk = function walk (fn) {
-	  var stack = [this._minX, this._minY, this._maxX, this._maxY, true, true];
+	  var stack = [this._minX, this._minY, this._maxX, this._maxY, 0];
 	  var Q = [this._root];
 	  while (Q.length !== 0) {
 	    var node = Q.pop();
 
-	    var hor= stack.pop();
 	    var dir= stack.pop();
 	    var ymax = stack.pop();
 	    var xmax = stack.pop();
@@ -545,17 +585,19 @@
 	      if (fn(node, xmin, ymin, xmax, ymax)) { break; }
 	      var hw = (xmax - xmin) / 2,
 	            hh = (ymax - ymin) / 2;
-	      if (hor) { Q.push(node.left, node.right); }
-	      else   { Q.push(node.right, node.left); }
-	      if (dir) { // by x
-	        stack.push(xmin, ymin, xmin + hw, ymax, !dir, hor);
-	        stack.push(xmin + hw, ymin, xmax, ymax, !dir, hor);
-	      } else { // by y
-	        stack.push(xmin, ymin, xmax, ymin + hh, !dir, hor);
-	        stack.push(xmin, ymin + hh, xmax, ymax, !dir, hor);
+	      //const nextDir = dir > 0 ? (dir - 1) : 3;
+	      var nextDir = (dir + 1) % 2;
+
+	      Q.push(node.left, node.right);
+
+	      if (nextDir) { // by x
+	        stack.push(xmin, ymin, xmin + hw, ymax, nextDir);
+	        stack.push(xmin + hw, ymin, xmax, ymax, nextDir);
+	      } else {     // by y
+	        stack.push(xmin, ymin + hh, xmax, ymax, nextDir);
+	        stack.push(xmin, ymin, xmax, ymin + hh, nextDir);
 	      }
 	    }
-	    //if (i++ == 13) break;
 	  }
 	  return this;
 	};
@@ -573,7 +615,7 @@
 
 	PHTree.prototype.map = function map (fn, ctx) {
 	  var res = [];
-	  this.visitAfter(function (node) {
+	  this.inOrder(function (node) {
 	    res.push(fn.call(ctx, node));
 	  });
 	  return res;
@@ -594,6 +636,13 @@
 	};
 
 
+	PHTree.prototype.size = function size () {
+	  var i = 0;
+	  this.visit(function () { i++; });
+	  return i;
+	};
+
+
 	function height (node) {
 	  return node ? (1 + Math.max(height(node.left), height(node.right))) : 0;
 	}
@@ -609,8 +658,8 @@
 	 */
 	function row (root, prefix, isTail, out, printNode) {
 	  if (root) {
-	    out(("" + prefix + (isTail ? '└── ' : '├── ') + (printNode(root)) + "\n"));
-	    var indent = prefix + (isTail ? '    ' : '│   ');
+	    out(prefix + (isTail ? '^-- ' : '|-- ') + printNode(root) + '\n');
+	    var indent = prefix + (isTail ? '    ' : '|   ');
 	    if (root.left)  { row(root.left,  indent, false, out, printNode); }
 	    if (root.right) { row(root.right, indent, true,  out, printNode); }
 	  }
