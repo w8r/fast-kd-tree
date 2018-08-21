@@ -47,7 +47,7 @@ svg.attr("width", width);
 svg.attr("height", height);
 var selected;
 
-var random = Math.random, n = 10000;
+var random = Math.random, n = 500;
 
 var data = d3.range(n).map(function() { return [random() * width, random() * height]; });
 // var data = new Array(n).fill(0).map((_, i) => {
@@ -156,7 +156,7 @@ function nodes(tree) {
   //   node.x1 = x1, node.y1 = y1;
   //   nodes.push(node);
   // });
-  //tree.postOrder(getTightBoxes);
+  tree.postOrder(getTightBoxes);
   tree.visit(n => { if (!n.data) nodes.push(n); });
   return nodes;
 }

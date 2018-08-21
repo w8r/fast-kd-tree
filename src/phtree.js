@@ -5,7 +5,7 @@ import sort from './sort';
 import SFCTree from './sfc-tree';
 
 class InternalNode {
-  constructor(code, left, right) {
+  constructor (code, left, right) {
   //constructor(left, right) {
     this.code  = code;
     this.left  = left;
@@ -23,6 +23,7 @@ class Leaf {
   constructor (code, data) {
     this.code = code;
     this.data = data;
+
     this.x0 = this.x1 = data[0];
     this.y0 = this.y1 = data[1];
   }
@@ -58,6 +59,52 @@ function build (data, ids, codes, first, last) {
   const left  = build(data, ids, codes, first, split);
   const right = build(data, ids, codes, split + 1, last);
   return new InternalNode(split, left, right);
+}
+
+
+class Node {
+  constructor (code) {
+    this.code = code;
+    this.left = this.right = null;
+    this.data = null;
+  }
+}
+
+
+function buildIterative (data, ids, codes, start, end) {
+  let root = new Node();
+  const Q = [root];
+  const stack = [start, end];
+
+  while (Q.length !== 0) {
+    const right = stack.pop();
+    const left  = stack.pop();
+    const node  = Q.pop();
+
+    const mid = findSplit(codes, left, right);
+    //const mid = (left + right) >> 1;
+    if (left - right === 0) {
+      node.code = codes[left];
+      node.data = data[ids[left]];
+    } else {
+      node.code = codes[mid];
+
+
+      if (left < mid) {
+        node.left = new Node();
+        Q.push(node.left);
+        stack.push(left, mid);
+      }
+
+
+      if (right > mid) {
+        node.right = new Node();
+        Q.push(node.right);
+        stack.push(mid + 1, right);
+      }
+    }
+  }
+  return root;
 }
 
 
@@ -179,7 +226,7 @@ export default class PHTree {
 
   inOrder (fn, ctx) {
     let current = this._root;
-    const Q = [];  /* Initialize stack s */
+    const Q = [];
     let done = false;
 
     while (!done) {
@@ -189,7 +236,7 @@ export default class PHTree {
       } else {
         if (Q.length !== 0) {
           current = Q.pop();
-          fn.call(ctx, current);
+          if (fn.call(ctx, current)) break;
           current = current.right;
         } else done = true;
       }
@@ -199,11 +246,10 @@ export default class PHTree {
 
 
   preOrder (fn, ctx) {
-    // Create an empty stack and push root to it
     const Q = [this._root];
     while (Q.length !== 0)  {
       const node = Q.pop();
-      fn.call(ctx, node);
+      if (fn.call(ctx, node)) break;
       if (node.right) Q.push(node.right);
       if (node.left)  Q.push(node.left);
     }
@@ -226,7 +272,7 @@ export default class PHTree {
         Q[last] = node;
         node = node.right;
       } else {
-        fn.call(ctx, node);
+        if (fn.call(ctx, node)) break;
         node = null;
       }
     } while (Q.length !== 0);

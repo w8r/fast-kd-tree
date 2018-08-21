@@ -341,7 +341,7 @@
 	  return { left: left, right: right };
 	}
 
-	var InternalNode = function InternalNode(code, left, right) {
+	var InternalNode = function InternalNode (code, left, right) {
 	//constructor(left, right) {
 	  this.code= code;
 	  this.left= left;
@@ -357,6 +357,7 @@
 	var Leaf = function Leaf (code, data) {
 	  this.code = code;
 	  this.data = data;
+
 	  this.x0 = this.x1 = data[0];
 	  this.y0 = this.y1 = data[1];
 	};
@@ -513,7 +514,7 @@
 
 	PHTree.prototype.inOrder = function inOrder (fn, ctx) {
 	  var current = this._root;
-	  var Q = [];/* Initialize stack s */
+	  var Q = [];
 	  var done = false;
 
 	  while (!done) {
@@ -523,7 +524,7 @@
 	    } else {
 	      if (Q.length !== 0) {
 	        current = Q.pop();
-	        fn.call(ctx, current);
+	        if (fn.call(ctx, current)) { break; }
 	        current = current.right;
 	      } else { done = true; }
 	    }
@@ -533,11 +534,10 @@
 
 
 	PHTree.prototype.preOrder = function preOrder (fn, ctx) {
-	  // Create an empty stack and push root to it
 	  var Q = [this._root];
 	  while (Q.length !== 0){
 	    var node = Q.pop();
-	    fn.call(ctx, node);
+	    if (fn.call(ctx, node)) { break; }
 	    if (node.right) { Q.push(node.right); }
 	    if (node.left){ Q.push(node.left); }
 	  }
@@ -560,7 +560,7 @@
 	      Q[last] = node;
 	      node = node.right;
 	    } else {
-	      fn.call(ctx, node);
+	      if (fn.call(ctx, node)) { break; }
 	      node = null;
 	    }
 	  } while (Q.length !== 0);
