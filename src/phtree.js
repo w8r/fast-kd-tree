@@ -2,20 +2,20 @@ import morton from 'morton';
 import hilbert from './hilbert';
 //import hilbert from 'morton';
 import sort from './sort';
-import SFCTree from './sfc-tree';
+//import SFCTree from './sfc-tree';
+import minDisc from './mindisc';
 
 class InternalNode {
   constructor (code, left, right) {
-  //constructor(left, right) {
-    this.code  = code;
-    this.left  = left;
-    this.right = right;
+    this.code   = code;
+    this.left   = left;
+    this.right  = right;
     left.parent = right.parent = this;
 
-    this.x0 = Math.min(left.x0, right.x0);
-    this.y0 = Math.min(left.y0, right.y0);
-    this.x1 = Math.max(left.x1, right.x1);
-    this.y1 = Math.max(left.y1, right.y1);
+    // this.x0 = Math.min(left.x0, right.x0);
+    // this.y0 = Math.min(left.y0, right.y0);
+    // this.x1 = Math.max(left.x1, right.x1);
+    // this.y1 = Math.max(left.y1, right.y1);
   }
 }
 
@@ -24,8 +24,8 @@ class Leaf {
     this.code = code;
     this.data = data;
 
-    this.x0 = this.x1 = data[0];
-    this.y0 = this.y1 = data[1];
+    // this.x0 = this.x1 = data[0];
+    // this.y0 = this.y1 = data[1];
   }
 }
 
@@ -360,6 +360,8 @@ export default class PHTree {
   }
 }
 
+PHTree.minDisc = minDisc;
+
 
 function height (node) {
   return node ? (1 + Math.max(height(node.left), height(node.right))) : 0;
@@ -382,5 +384,3 @@ function row (root, prefix, isTail, out, printNode) {
     if (root.right) row(root.right, indent, true,  out, printNode);
   }
 }
-
-PHTree.SFCTree = SFCTree;

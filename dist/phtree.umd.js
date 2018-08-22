@@ -135,29 +135,27 @@
 	  return ((i1 << 1) | i0) >>> 0;
 	}
 
-	function swap(array, codes, i, j) {
-	  var temp = array[i];
-	  array[i]   = array[j];
-	  array[j]   = temp;
-
-	  var code = codes[i];
-	  codes[i]   = codes[j];
-	  codes[j]   = code;
-	}
-
-
 	function qsort(data, values, left, right) {
 	  if (left >= right) { return; }
 
 	  var pivot = values[(left + right) >> 1];
 	  var i = left - 1;
 	  var j = right + 1;
+	  var temp;
 
 	  while (true) {
-	      do { i++; } while (values[i] < pivot);
-	      do { j--; } while (values[j] > pivot);
-	      if (i >= j) { break; }
-	      swap(data, values, i, j);
+	    do { i++; } while (values[i] < pivot);
+	    do { j--; } while (values[j] > pivot);
+	    if (i >= j) { break; }
+
+	    // swap(data, values, i, j);
+	    temp      = data[i];
+	    data[i]   = data[j];
+	    data[j]   = temp;
+
+	    temp      = values[i];
+	    values[i] = values[j];
+	    values[j] = temp;
 	  }
 
 	  qsort(data, values, left, j);
@@ -168,210 +166,114 @@
 	  return qsort(coords, codes, 0, coords.length - 1);
 	}
 
-	/**
-	 * This is a very interesting decomposition:
-	 * It splits by equal spans on the space-filling curve.
-	 * It's super-fast, but the zones are of irregular shapes (tetris-like).
-	 * It gets worse if you use morton curve.
-	 */
-	var SFCTree = function SFCTree (points, x, y) {
-	  if ( x === void 0 ) x = function (p) { return p.x; };
-	  if ( y === void 0 ) y = function (p) { return p.y; };
+	function circleContainsCircle(cx, cy, cr, x, y, r) {
+	  var dx = cx - x;
+	  var dy = cy - y;
+	  var dr = cr - r;
+	  // reduce precision not to deal with square roots
+	  return (dx * dx + dy * dy) < (dr * dr + 1e-6);
+	}
 
-	  this._x = x;
-	  this._y = y;
-	  this.buildHilbert(points);
-	  //this.build(points);
-	};
+	function from2discs(ax, ay, bx, by, ar, br) {
+	  var dx = bx - ax;
+	  var dy = by - ay;
+	  var dr = br - ar;
+	  var l = Math.sqrt(dx * dx + dy * dy);
 
-	SFCTree.prototype.buildHilbert = function buildHilbert (points) {
-	  var n     = points.length;
-	  var hvalues = new Array(n);
-	  var order = new Array(n);
-	  var x = this._x, y = this._y;
-
-	  for (var i = 0; i < n; i++) {
-	    var p = points[i];
-	    hvalues[i] = hilbert(x(p), y(p));
-	    order[i]= i;
-	  }
-	  sort(order, hvalues);
-	  this._list = toList(points, order, hvalues, x, y);
-	  this._root = sortedListToBST({ head: this._list }, 0, n);
-
-	  var node = this._list;
-	  // while (node) {
-	  // node.xmin = node.ymin = Infinity;
-	  // node.xmax = node.ymax = -Infinity;
-	  // node = node.next;
-	  // }
-
-	  node = this._list;
-	  // while (node) {
-	  // const parent = node.parent;
-	  // const xn = x(node.point), yn = y(node.point);
-	  // if (parent) {
-	  //   if (xn < parent.xmin) parent.xmin = xn;
-	  //   if (yn < parent.ymin) parent.ymin = yn;
-	  //   if (xn > parent.xmax) parent.xmax = xn;
-	  //   if (yn > parent.ymax) parent.ymax = yn;
-	  // }
-	  // node = node.next;
-	  // }
-	};
-
-	// build (points) {
-	// const n = points.length;
-	// const x = this._x, y = this._y;
-	// const indexes = new Array(n);
-	// const X = new Array(n), Y = new Array(n);
-	// for (let i = 0; i < n; i++) {
-	//   const p = points[i];
-	//   X[i] = x(p); Y[i] = y(p); indexes[i] = i;
-	// }
-	// const byX = sort(indexes.slice(), X);
-	// const byY = sort(indexes.slice(), Y);
-
-
-	// }
-
-	// _build (points, order, start, end) {
-	// if (start === end) { // leaf
-	//   return { point: points[start], parent: null, left: null, right: null };
-	// } else {
-	//   const med = Math.floor((start + end) / 2);
-	//   const root = { points[med]
-	// }
-
-	// }
-
-
-	SFCTree.prototype.query = function query (xmin, ymin, xmax, ymax) {
-	    var this$1 = this;
-
-	  var qmin = morton_1(xmin, ymin), qmax = morton_1(xmax, ymax);
-	  var result = [];
-
-	  this.range(qmin, qmax, function (node) {
-	    var x = this$1._x(node.point), y = this$1._y(node.point);
-	    if (x <= xmax && x >= xmin && y <= ymax && y >= ymin) {
-	      result.push(node.point);
-	    }
-	  });
-
-	  return result;
-
-
-	  // const Q = [this._root];
-	  // const result = [];
-	  // while (Q.length !== 0) {
-	  // const node = Q.pop();
-	  // if (node) {
-	  //   const x = this._x(node.point), y = this._y(node.point);
-	  //   if (x <= xmax && x >= xmin && y <= ymax && y >= ymin) {
-	  //     result.push(node.point);
-	  //   }
-	  //   const { left, right } = node;
-	  //   if (left&& left.code>= qmin) Q.push(left);
-	  //   if (right && right.code <= qmax) Q.push(right);
-	  //   console.log(node.code, node.left, node.right, qmin, qmax);
-	  // }
-	  // }
-	  // return result;
-	};
-
-
-	SFCTree.prototype.range = function range (low, high, fn, ctx) {
-	    var this$1 = this;
-
-	  var Q = [];
-	  var node = this._root;
-
-	  while (Q.length !== 0 || node) {
-	    if (node) {
-	      Q.push(node);
-	      node = node.left;
-	    } else {
-	      node = Q.pop();
-	      if (node.code > high) {
-	        break;
-	      } else if (node.code >= low) {
-	        if (fn.call(ctx, node)) { return this$1; } // stop if smth is returned
-	      }
-	      node = node.right;
-	    }
-	  }
-	  return this;
-	};
-
-
-	function toList (nodes, order, codes, x, y) {
-	  var list = { next: null };
-	  var prev = list;
-	  for (var i = 0; i < nodes.length; i++) {
-	    var node = nodes[order[i]];
-	    //const cx = x(node), cy = y(node);
-
-	    prev = prev.next = node;
-	  }
-	  prev.next = null;
-	  return list.next;
+	  return [
+	    (ax + bx + dx / l * dr) / 2,
+	    (ay + by + dy / l * dr) / 2,
+	    (l + ar + br) / 2
+	  ];
 	}
 
 
-	function sortedListToBST (list, start, end) {
-	  var size = end - start;
-	  if (size > 0) {
-	    var middle = start + (size >> 1);
-	    var left = sortedListToBST(list, start, middle);
+	function from3discs(ax, ay, bx, by, cx, cy, ar, br, cr) {
+	  var a2 = 2 * (ax - bx),
+	    b2 = 2 * (ay - by),
+	    c2 = 2 * (br - ar);
+	  var d2 = ax * ax + ay * ay - ar * ar - bx * bx - by * by + br * br;
+	  var a3 = 2 * (ax - cx),
+	    b3 = 2 * (ay - cy),
+	    c3 = 2 * (cr - ar);
+	  var d3 = ax * ax + ay * ay - ar * ar - cx * cx - cy * cy + cr * cr;
+	  var ab = a3 * b2 - a2 * b3,
+	    xa = (b2 * d3 - b3 * d2) / ab - ax,
+	    xb = (b3 * c2 - b2 * c3) / ab,
+	    ya = (a3 * d2 - a2 * d3) / ab - ay,
+	    yb = (a2 * c3 - a3 * c2) / ab;
 
-	    var root = list.head;
-	    root.left = left;
-	    if (root.left) { root.left.parent = root; }
-
-	    list.head = list.head.next;
-
-	    root.right = sortedListToBST(list, middle + 1, end);
-	    if (root.right) { root.right.parent = root; }
-	    return root;
-	  }
-
-	  return null;
+	  var A = xb * xb + yb * yb - 1,
+	    B = 2 * (xa * xb + ya * yb + ar),
+	    C = xa * xa + ya * ya - ar * ar,
+	    r = (-B - Math.sqrt(B * B - 4 * A * C)) / (2 * A);
+	  return [
+	    xa + xb * r + ax,
+	    ya + yb * r + ay,
+	    r
+	  ];
 	}
 
 
-	function sortedListToBST (list, first, last) {
-	  var size = last - first;
-	  if (size === 0) { return list.head; }
-	  var split = first + (size >> 1);
-	  var left  = sortedListToBST(list, first, split);
-	  list.head = list.head.next;
-	  var right = sortedListToBST(list, split + 1, last);
-	  // const node = [left, right];
-	  // node.code = split;
-	  // return node;
-	  return { left: left, right: right };
+	function combine(P, S, X, Y, R, from2, from3) {
+	  var circle = null;
+	  var len = S.length;
+	  var u, v, w;
+
+	  if (len === 1) { // 1 point
+	    u = S[0];
+	    circle = [X(u), Y(u), R(u) || 0];
+	  } else if (len === 2) { // 2 points
+	    u = S[0];
+	    v = S[1];
+	    circle = from2discs(X(u), Y(u), X(v), Y(v), R(u), R(v));
+	  } else if (len === 3) { // 3 points
+	    u = S[0];
+	    v = S[1];
+	    w = S[2];
+	    circle = from3discs(X(u), Y(u), X(v), Y(v), X(w), Y(w), R(u), R(v), R(w));
+	  }
+
+	  return circle;
+	}
+
+
+	function minDisc (points, bounds, n, X, Y, R) {
+	  var circle = null;
+
+	  if (n === 0 || bounds.length === 3) {
+	    circle = combine(points, bounds, X, Y, R);
+	  } else {
+	    var u = points[n - 1];
+	    circle = minDisc(points, bounds, n - 1, X, Y, R);
+	    if (circle === null || !circleContainsCircle(circle[0], circle[1], circle[2], X(u), Y(u), R(u))) {
+	      bounds.push(u);
+	      circle = minDisc(points, bounds, n - 1, X, Y, R);
+	      bounds.pop();
+	    }
+	  }
+
+	  return circle;
 	}
 
 	var InternalNode = function InternalNode (code, left, right) {
-	//constructor(left, right) {
-	  this.code= code;
-	  this.left= left;
-	  this.right = right;
+	  this.code = code;
+	  this.left = left;
+	  this.right= right;
 	  left.parent = right.parent = this;
 
-	  this.x0 = Math.min(left.x0, right.x0);
-	  this.y0 = Math.min(left.y0, right.y0);
-	  this.x1 = Math.max(left.x1, right.x1);
-	  this.y1 = Math.max(left.y1, right.y1);
+	  // this.x0 = Math.min(left.x0, right.x0);
+	  // this.y0 = Math.min(left.y0, right.y0);
+	  // this.x1 = Math.max(left.x1, right.x1);
+	  // this.y1 = Math.max(left.y1, right.y1);
 	};
 
 	var Leaf = function Leaf (code, data) {
 	  this.code = code;
 	  this.data = data;
 
-	  this.x0 = this.x1 = data[0];
-	  this.y0 = this.y1 = data[1];
+	  // this.x0 = this.x1 = data[0];
+	  // this.y0 = this.y1 = data[1];
 	};
 
 	var BucketLeaf = function BucketLeaf (code, data) {
@@ -659,6 +561,8 @@
 	  return i;
 	};
 
+	PHTree.minDisc = minDisc;
+
 
 	function height (node) {
 	  return node ? (1 + Math.max(height(node.left), height(node.right))) : 0;
@@ -681,8 +585,6 @@
 	    if (root.right) { row(root.right, indent, true,  out, printNode); }
 	  }
 	}
-
-	PHTree.SFCTree = SFCTree;
 
 	return PHTree;
 
