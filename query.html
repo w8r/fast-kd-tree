@@ -32,6 +32,12 @@ body, html {
   stroke-opacity: 0.2;
 }
 
+.mcenter {
+  stroke: none;
+  fill: red;
+  fill-opacity: 0.5;
+}
+
 .node {
   fill: none;
   stroke: #ccc;
@@ -76,7 +82,7 @@ var data = new Array(n).fill(0).map((_, i) => {
 //   return pt;
 // });
 
-const nodeSize = Math.sqrt(n) | 0;
+const nodeSize = 0; //Math.sqrt(n) | 0;
 console.time('build');
 var tree = new phtree(data, p => p[0], p => p[1], nodeSize, 'hilbert');
 console.timeEnd('build');
@@ -248,16 +254,18 @@ console.timeEnd('bbox');
 
 console.time('circles');
 tree.postOrder((node) => {
-  let cx, cy, r, child;
+  let cx, cy, r, m, child;
   if (node.data) {
     if (tree._bucketSize) {
       const circle = phtree.minDisc(
         node.data, [], node.data.length, tree._x, tree._y, () => 1);
       cx = circle[0]; cy = circle[1]; r = circle[2];
+      m = node.data.length; // mass
     } else {
       cx = tree._x(node.data);
       cy = tree._y(node.data);
       r = 0;
+      m = 1; // mass
     }
   } else {
     if (node.left && node.right) {
@@ -272,19 +280,130 @@ tree.postOrder((node) => {
       cx = (ax + bx + dx / l * dr) / 2;
       cy = (ay + by + dy / l * dr) / 2;
       r = (l + ar + br) / 2;
+
+      m = node.left.mass + node.right.mass; // mass
     } else {
       child = node.left || node.right;
       cx = child.cx;
       cy = child.cy;
       r = child.r;
+
+      m = child.mass; // mass
     }
   }
 
-  node.cx = cx;
-  node.cy = cy;
-  node.r  = r;
+  node.cx   = cx;
+  node.cy   = cy;
+  node.r    = r;
+  node.mass = m;
 });
 console.timeEnd('circles');
+
+tree.visit(n => (n.fx = n.fy = 0));
+
+const theta = 0.37;
+const charge = 1;
+const friction = 0.1;
+function applyForces(data, tree) {
+  // collect leafs
+  const bodies = new Array(data.length)
+  const datas  = new Array(data.length);
+  let pos = 0;
+  tree.visit(n => {
+    if (n.data) {
+      if (tree._bucketSize === 0) {
+        bodies[pos] = n;
+        datas[pos] = n.data;
+        pos++;
+      } else {
+        for (let i = 0; i < node.data.length; i++) {
+          bodies[pos] = n;
+          datas[pos]  = n.data;
+          pos++;
+        }
+      }
+    }
+  });
+
+  const Q = [];
+  for (let i = 0; i < datas.length; i++) {
+    const pt        = datas[i];
+    const currentBody = bodies[i];
+
+    let fx = 0, fy = 0, dx, dy, c, q, dsq, rmax;
+    const x = tree._x(pt), y = tree._y(pt);
+    const r = currentBody.r;
+    const m = currentBody.mass;
+
+    Q.length = 0;
+    Q.push(tree._root);
+    while (Q.length !== 0) {
+      const node = Q.pop();
+
+      if (node !== currentBody) {
+        dx = x - node.cx;
+        dy = y - node.cy;
+        dsq = dx * dx + dy * dy;
+        rmax = r + node.r;
+
+        if (node.data) { // different leaf - direct calc
+          c = charge;
+          if (dsq >= rmax * rmax) {
+            c *= m * node.mass;
+          } else {
+            dsq = friction * rmax * rmax;
+          }
+          q = c / dsq;
+          fx += dx * q;
+          fy += dy * q;
+        } else { // different body - is it well-separated?
+          if (Math.sqrt(dsq) >= rmax / theta) { // then use it as a solid body
+            c = charge;
+            if (dsq >= rmax * rmax) {
+              c *= m * node.mass;
+            } else {
+              dsq = friction * rmax * rmax;
+            }
+            q = c / dsq;
+            fx += dx * q;
+            fy += dy * q;
+            // and stop descending
+          } else { // otherwise too close
+            // iterate into children
+            if (node.left)  Q.push(node.left);
+            if (node.right) Q.push(node.right);
+          }
+        }
+      } else if (tree._bucketSize !== 0) { // same leaf, bucket
+        for (let j = 0; j < node.data.length; j++) { // direct calc
+          const body = node.data[i];
+
+          if (body !== data) continue;
+
+          dx = x - tree._x(body);
+          dy = y - tree._y(body);
+          dsq = dx * dx + dy * dy;
+          c = charge;
+          rmax = r + node.r;
+
+          if (dsq >= (rmax * rmax)) {
+            c *= currentBody.mass * node.mass;
+          } else {
+            dsq = friction * rmax * rmax;
+          }
+          q = c / dsq;
+          fx += dx * q;
+          fy += dy * q;
+        }
+      }
+    }
+
+    currentBody.fx = fx;
+    currentBody.fy = fy;
+  }
+}
+
+
 
 var med = svg.selectAll(".med")
   .data(tree.map((n) => [n.cx, n.cy, n.r ]))
@@ -293,4 +412,12 @@ var med = svg.selectAll(".med")
     .attr("cx", function(d) { return d[0]; })
     .attr("cy", function(d) { return d[1]; })
     .attr("r",  function(d) { return d[2]; });
+
+// var mcenters = svg.selectAll(".mcenter")
+//   .data(tree.map((n) => [n.cx, n.cy, n.mass / 10 ]))
+//   .enter().append("circle")
+//     .attr("class", "mcenter")
+//     .attr("cx", function(d) { return d[0]; })
+//     .attr("cy", function(d) { return d[1]; })
+//     .attr("r",  function(d) { return d[2]; });
 </script>
