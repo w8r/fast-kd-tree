@@ -39,8 +39,8 @@ class BucketLeaf {
 
 function buildBuckets (data, ids, codes, first, last, bucketSize) {
   if (last - first <= bucketSize) {
-    const bucket = new Array(last - first);
-    for (let i = first, j = 0; i < last; i++, j++) bucket[j] = data[ids[i]];
+    const bucket = new Array(last - first + 1);
+    for (let i = first, j = 0; i <= last; i++, j++) bucket[j] = data[ids[i]];
     return new BucketLeaf(codes[first], bucket);
   }
   const split = findSplit(codes, first, last);

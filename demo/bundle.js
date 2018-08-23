@@ -272,8 +272,8 @@
 
 	function buildBuckets (data, ids, codes, first, last, bucketSize) {
 	  if (last - first <= bucketSize) {
-	    var bucket = new Array(last - first);
-	    for (var i = first, j = 0; i < last; i++, j++) { bucket[j] = data[ids[i]]; }
+	    var bucket = new Array(last - first + 1);
+	    for (var i = first, j = 0; i <= last; i++, j++) { bucket[j] = data[ids[i]]; }
 	    return new BucketLeaf(codes[first], bucket);
 	  }
 	  var split = findSplit(codes, first, last);
