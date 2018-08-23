@@ -6,9 +6,14 @@ body, html {
   padding: 0;
   overflow: hidden;
 }
+
 .point {
   fill: #000;
   fill-opacity: 0.4;
+}
+
+.point:hover {
+  stroke-width: 3;
 }
 
 .point--scanned {
@@ -45,6 +50,11 @@ body, html {
   stroke-opacity: 0.2;
 }
 
+.node--scanned {
+  fill: orange;
+  fill-opacity: 0.2;
+}
+
 </style>
 <svg width="960" height="500"></svg>
 <!-- <script src="https://d3js.org/d3.v4.min.js"></script> -->
@@ -61,7 +71,7 @@ svg.attr("width", width);
 svg.attr("height", height);
 var selected;
 
-var random = Math.random, n = 300;
+var random = Math.random, n = 1000;
 
 // var data = d3.range(n).map(function() { return [random() * width, random() * height]; });
 var data = new Array(n).fill(0).map((_, i) => {
@@ -103,21 +113,12 @@ svg
 var brush = d3.brush()
     .on("brush", brushed);
 
-svg.selectAll(".node")
-  .data(nodes(tree))
-  .enter().append("rect")
-    .attr("class", "node")
-    .attr("x", function(d) { return d.x0; })
-    .attr("y", function(d) { return d.y0; })
-    .attr("width", function(d) { return d.x1 - d.x0; })
-    .attr("height", function(d) { return d.y1 - d.y0; });
-
 var point = svg.selectAll(".point")
   .data(data)
   .enter().append("circle")
     .attr("class", "point")
-    .attr("cx", function(d) { return d[0]; })
-    .attr("cy", function(d) { return d[1]; })
+    .attr("cx", d => d[0])
+    .attr("cy", d => d[1])
     .attr("r", 1);
 
 svg.append("g")
@@ -301,52 +302,56 @@ console.timeEnd('circles');
 
 tree.visit(n => (n.fx = n.fy = 0));
 
-const theta = 0.37;
+const theta = 0.8;
 const charge = 1;
 const friction = 0.1;
-function applyForces(data, tree) {
-  // collect leafs
-  const bodies = new Array(data.length)
-  const datas  = new Array(data.length);
+console.time('collect leafs');
+const bodies = new Array(data.length)
+const datas  = new Array(data.length);
+(() => { // collect leafs
   let pos = 0;
-  tree.visit(n => {
-    if (n.data) {
-      if (tree._bucketSize === 0) {
+  if (tree._bucketSize === 0) {
+    tree.visit((n) => {
+      if (n.data) {
         bodies[pos] = n;
         datas[pos] = n.data;
         pos++;
-      } else {
+      }
+    });
+  } else {
+    tree.visit(n => {
+      if (n.data) {
         for (let i = 0; i < node.data.length; i++) {
           bodies[pos] = n;
           datas[pos]  = n.data;
           pos++;
         }
       }
-    }
-  });
+    });
+  }
+})();
+console.timeEnd('collect leafs');
 
+function applyForces(data, tree) {
   const Q = [];
   for (let i = 0; i < datas.length; i++) {
-    const pt        = datas[i];
+    const pt          = datas[i];
     const currentBody = bodies[i];
 
-    let fx = 0, fy = 0, dx, dy, c, q, dsq, rmax;
+    let fx = 0, fy = 0;
     const x = tree._x(pt), y = tree._y(pt);
     const r = currentBody.r;
     const m = currentBody.mass;
 
-    Q.length = 0;
-    Q.push(tree._root);
-    while (Q.length !== 0) {
-      const node = Q.pop();
-
+    tree.preOrder((node) => {
+      let dx = 0, dy = 0, c = 0, q = 0, dsq = 0, rmax = 0, sep = 0;
       if (node !== currentBody) {
         dx = x - node.cx;
         dy = y - node.cy;
         dsq = dx * dx + dy * dy;
         rmax = r + node.r;
 
-        if (node.data) { // different leaf - direct calc
+        if (node.data) { // different leaf - direct calculation
           c = charge;
           if (dsq >= rmax * rmax) {
             c *= m * node.mass;
@@ -357,7 +362,8 @@ function applyForces(data, tree) {
           fx += dx * q;
           fy += dy * q;
         } else { // different body - is it well-separated?
-          if (Math.sqrt(dsq) >= rmax / theta) { // then use it as a solid body
+          sep = rmax / theta;
+          if (dsq >= sep * sep) { // then use it as a solid body
             c = charge;
             if (dsq >= rmax * rmax) {
               c *= m * node.mass;
@@ -367,14 +373,10 @@ function applyForces(data, tree) {
             q = c / dsq;
             fx += dx * q;
             fy += dy * q;
-            // and stop descending
-          } else { // otherwise too close
-            // iterate into children
-            if (node.left)  Q.push(node.left);
-            if (node.right) Q.push(node.right);
+            return true; // and stop descending
           }
         }
-      } else if (tree._bucketSize !== 0) { // same leaf, bucket
+      } /*else if (tree._bucketSize !== 0) { // same leaf, bucket
         for (let j = 0; j < node.data.length; j++) { // direct calc
           const body = node.data[i];
 
@@ -395,8 +397,8 @@ function applyForces(data, tree) {
           fx += dx * q;
           fy += dy * q;
         }
-      }
-    }
+      }*/
+    });
 
     currentBody.fx = fx;
     currentBody.fy = fy;
@@ -404,14 +406,144 @@ function applyForces(data, tree) {
 }
 
 
+function directCalc(data) {
+  let FX = new Array(data.length), FY = new Array(data.length);
+  for (let i = 0; i < data.length; i++) {
+    const x = data[i][0], y = data[i][1], ra = 1, ma = 1;
+    for (let j = i + 1; j < data.length; j++) {
+      const x1 = data[j][0], y1 = data[j][1], rb = 1, mb = 1;
+      const dx = x - x1;
+      const dy = y - y1;
+      let dsq = dx * dx + dy * dy;
+      let c = charge;
+      const rmax = ra + rb;
 
-var med = svg.selectAll(".med")
-  .data(tree.map((n) => [n.cx, n.cy, n.r ]))
+      if (dsq >= (rmax * rmax)) {
+        c *= ma * mb;
+      } else {
+        dsq = friction * rmax * rmax;
+      }
+      const q = c / dsq;
+      FX[i] += dx * q;
+      FY[i] += dy * q;
+      FX[j] -= dx * q;
+      FY[j] -= dy * q;
+    }
+  }
+}
+
+
+(() => {
+  const cur = bodies[n >> 1];
+  const pt = datas[n >> 1];
+  pt.selected = true;
+  tree.preOrder(node => {
+    if (node !== cur) {
+      if (node.data) {
+        node.data.selected = true;
+      } else {
+        const dx = cur.cx - node.cx;
+        const dy = cur.cy - node.cy;
+        const dsq = dx * dx + dy * dy;
+        const rmax = cur.r + node.r;
+
+        if (dsq >= (rmax / theta) * (rmax / theta)) {
+          node.scanned = true;
+          return true;
+        }
+      }
+    }
+  });
+  show();
+}) ();
+
+
+svg.selectAll(".node")
+  .data(nodes(tree))
+  .enter().append("rect")
+    .attr("class", d => d.scanned ? 'node node--scanned' : 'node')
+    .attr("x", d  => d.x0)
+    .attr("y", d => d.y0)
+    .attr("width", d => d.x1 - d.x0)
+    .attr("height", d => d.y1 - d.y0);
+
+
+
+const med = svg.selectAll(".med")
+  .data(tree.map((n) => [n.cx, n.cy, n.r, n.scanned]))
   .enter().append("circle")
     .attr("class", "med")
-    .attr("cx", function(d) { return d[0]; })
-    .attr("cy", function(d) { return d[1]; })
-    .attr("r",  function(d) { return d[2]; });
+    .attr("cx", d => d[0])
+    .attr("cy", d => d[1])
+    .attr("r",  d => d[2]);
+
+
+quadtree.visitAfter((quad) => {
+  var strength = 0, q, c, weight = 0, x, y, i;
+
+  // For internal nodes, accumulate forces from child quadrants.
+  if (quad.length) {
+    for (x = y = i = 0; i < 4; ++i) {
+      if ((q = quad[i]) && (c = Math.abs(q.value))) {
+        strength += q.value, weight += c, x += c * q.x, y += c * q.y;
+      }
+    }
+    quad.x = x / weight;
+    quad.y = y / weight;
+  }
+
+  // For leaf nodes, accumulate forces from coincident quadrants.
+  else {
+    q = quad;
+    q.x = q.data[0];
+    q.y = q.data[1];
+    do strength += 30;
+    while (q = q.next);
+  }
+
+  quad.value = strength;
+})
+
+function quadApply () {
+  const distanceMin2 = 1,
+      distanceMax2 = Infinity,
+      theta2 = 0.81;
+  for (let i = 0; i < n; i++) {
+  const node = data[i];
+  quadtree.visit((quad, x1, _, x2) => {
+    var x = quad.x - node[0],
+        y = quad.y - node[1],
+        w = x2 - x1,
+        l = x * x + y * y;
+
+    // Apply the Barnes-Hut approximation if possible.
+    // Limit forces for very close nodes; randomize direction if coincident.
+    if (w * w / theta2 < l) {
+      if (l < distanceMax2) {
+        if (l < distanceMin2) l = Math.sqrt(distanceMin2 * l);
+        node.vx += x * 1 / l;
+        node.vy += y * 1 / l;
+      }
+      return true;
+    }
+
+    // Otherwise, process points directly.
+    else if (quad.length || l >= distanceMax2) return;
+
+    // Limit forces for very close nodes; randomize direction if coincident.
+    if (quad.data !== node || quad.next) {
+      if (l < distanceMin2) l = Math.sqrt(distanceMin2 * l);
+    }
+
+    do if (quad.data !== node) {
+      w = 30 / l;
+      node.vx += x * w;
+      node.vy += y * w;
+    } while (quad = quad.next);
+  });
+}
+}
+
 
 // var mcenters = svg.selectAll(".mcenter")
 //   .data(tree.map((n) => [n.cx, n.cy, n.mass / 10 ]))

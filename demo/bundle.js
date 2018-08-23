@@ -444,9 +444,10 @@
 	  var Q = [this._root];
 	  while (Q.length !== 0){
 	    var node = Q.pop();
-	    if (fn.call(ctx, node)) { break; }
-	    if (node.right) { Q.push(node.right); }
-	    if (node.left){ Q.push(node.left); }
+	    if (!fn.call(ctx, node)) {
+	      if (node.right) { Q.push(node.right); }
+	      if (node.left){ Q.push(node.left); }
+	    }
 	  }
 	  return this;
 	};
@@ -467,7 +468,7 @@
 	      Q[last] = node;
 	      node = node.right;
 	    } else {
-	      if (fn.call(ctx, node)) { break; }
+	      fn.call(ctx, node);
 	      node = null;
 	    }
 	  } while (Q.length !== 0);
