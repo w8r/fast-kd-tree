@@ -1,7 +1,25 @@
 import sort from './sort';
 import hilbert from './hilbert';
 import morton from 'morton';
+import InternalNode from './internal_node';
+import { BucketLeaf, Leaf } from './leaf';
+import { inOrder, preOrder, postOrder, map } from './traversals';
 
+
+const defaultX = d => d.x;
+const defaultY = d => d.y;
+
+
+function build (data, ids, codes, first, last) {
+  if (last - first === 0) return new Leaf(codes[first], data[ids[first]]);
+  const split = (last + first) >> 1;
+  const left  = build(data, ids, codes, first, split);
+  const right = build(data, ids, codes, split + 1, last);
+  // const nd = [left, right];
+  // nd.left = left; nd.right = right;
+  // return nd;
+  return new InternalNode(split, left, right);
+}
 
 /**
  * This is a very interesting decomposition:
@@ -10,27 +28,42 @@ import morton from 'morton';
  * It gets worse if you use morton curve.
  */
 export default class SFCTree {
-  constructor (points, x = p => p.x, y = p => p.y) {
-    this._x = x;
-    this._y = y;
+  constructor (points, getX = defaultX, getY = defaultY, bucketSize = 0) {
+    this._x = getX;
+    this._y = getY;
+    this._bucketSize = bucketSize;
     this.buildHilbert(points);
     //this.build(points);
   }
+
 
   buildHilbert(points) {
     const n       = points.length;
     const hvalues = new Array(n);
     const order   = new Array(n);
-    const x = this._x, y = this._y;
+
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
 
     for (let i = 0; i < n; i++) {
       const p = points[i];
-      hvalues[i] = hilbert(x(p), y(p));
+      const x = this._x(p), y = this._y(p)
+      hvalues[i] = hilbert(x, y);
+      if (x < minX) minX = x;
+      if (y < minY) minY = y;
+      if (x > maxX) maxX = x;
+      if (y > maxY) maxY = y;
       order[i]  = i;
     }
     sort(order, hvalues);
-    this._list = toList(points, order, hvalues, x, y);
-    this._root = sortedListToBST({ head: this._list }, 0, n);
+
+    // this._list = toList(points, order, hvalues, this._x, this._y);
+    // this._root = sortedListToBST({ head: this._list }, 0, n);
+    this._minX = minX;
+    this._minY = minY;
+    this._maxX = maxX;
+    this._maxY = maxY;
+
+    this._root = build(points, order, hvalues, 0, n - 1);
 
     let node = this._list;
     // while (node) {
@@ -80,15 +113,15 @@ export default class SFCTree {
 
 
   query (xmin, ymin, xmax, ymax) {
-    const qmin = morton(xmin, ymin), qmax = morton(xmax, ymax);
+    const qmin = hilbert(xmin, ymin), qmax = hilbert(xmax, ymax);
     const result = [];
 
-    this.range(qmin, qmax, (node) => {
-      const x = this._x(node.point), y = this._y(node.point);
-      if (x <= xmax && x >= xmin && y <= ymax && y >= ymin) {
-        result.push(node.point);
-      }
-    });
+    // this.range(qmin, qmax, (node) => {
+    //   const x = this._x(node.point), y = this._y(node.point);
+    //   if (x <= xmax && x >= xmin && y <= ymax && y >= ymin) {
+    //     result.push(node.point);
+    //   }
+    // });
 
     return result;
 
@@ -133,6 +166,11 @@ export default class SFCTree {
     return this;
   }
 }
+
+SFCTree.prototype.inOrder   = inOrder;
+SFCTree.prototype.preOrder  = preOrder;
+SFCTree.prototype.postOrder = postOrder;
+SFCTree.prototype.map       = map;
 
 
 function toList (nodes, order, codes, x, y) {

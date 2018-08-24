@@ -22,6 +22,7 @@ function insert(node, ax, ay, bx, by, x, y, id) {
   node.topLeft     = insert(node.topLeft, ax, my + 1, mx, by, x, y, id);
   node.bottomRight = insert(node.bottomRight, mx + 1, ay, bx, my, x, y, id);
   node.topRight    = insert(node.topRight, mx + 1, my + 1, bx, by, x, y, id);
+
   return node;
 }
 

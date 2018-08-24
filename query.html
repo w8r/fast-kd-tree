@@ -61,6 +61,7 @@ body, html {
 <script type="text/javascript" src="node_modules/d3/dist/d3.min.js"></script>
 <script type="text/javascript" src="node_modules/seedrandom/seedrandom.min.js"></script>
 <script type="text/javascript" src="dist/phtree.umd.js"></script>
+<script type="text/javascript" src="dist/sfctree.umd.js"></script>
 <script>
 Math.seedrandom('query');
 
@@ -73,12 +74,14 @@ var selected;
 
 var random = Math.random, n = 1000;
 
-// var data = d3.range(n).map(function() { return [random() * width, random() * height]; });
-var data = new Array(n).fill(0).map((_, i) => {
-  return i < (n / 2) ?
-    [width / 4 * random(), height / 4 * random()] :
-    [width * random(), height * random()];
+var data = d3.range(n).map(function() {
+  return [random() * width, random() * height];
 });
+// var data = new Array(n).fill(0).map((_, i) => {
+//   return i < (n / 2) ?
+//     [width / 4 * random(), height / 4 * random()] :
+//     [width * random(), height * random()];
+// });
 
 // const cells = Math.sqrt(n) | 0;
 // let x = width / cells / 2, y = -height / cells / 2;
@@ -96,6 +99,11 @@ const nodeSize = 0; //Math.sqrt(n) | 0;
 console.time('build');
 var tree = new phtree(data, p => p[0], p => p[1], nodeSize, 'hilbert');
 console.timeEnd('build');
+
+// console.time('build sfc');
+// var tree = new sfctree(data, p => p[0], p => p[1], nodeSize, 'hilbert');
+// console.timeEnd('build sfc');
+
 console.time('quadtree');
 var quadtree = new d3.quadtree(data, p => p[0], p => p[1]);
 console.timeEnd('quadtree');
@@ -107,8 +115,8 @@ svg
     .y(d => d[1])(getData(tree)))
   .attr('stroke-width', 2)
   .attr('fill', 'none')
-  .attr('stroke', 'red')
-  .attr('stroke-opacity', 0.1);
+  .attr('stroke', 'darkblue')
+  .attr('stroke-opacity', 0.25);
 
 var brush = d3.brush()
     .on("brush", brushed);
@@ -170,7 +178,7 @@ function nodes(tree) {
   //   nodes.push(node);
   // });
   tree.postOrder(getTightBoxes);
-  tree.visit(n => { if (!n.data) nodes.push(n); });
+  tree.preOrder(n => { if (!n.data) nodes.push(n); });
   return nodes;
 }
 
@@ -300,9 +308,9 @@ tree.postOrder((node) => {
 });
 console.timeEnd('circles');
 
-tree.visit(n => (n.fx = n.fy = 0));
+tree.preOrder(n => (n.fx = n.fy = 0));
 
-const theta = 0.8;
+const theta = 0.37;
 const charge = 1;
 const friction = 0.1;
 console.time('collect leafs');
@@ -311,7 +319,7 @@ const datas  = new Array(data.length);
 (() => { // collect leafs
   let pos = 0;
   if (tree._bucketSize === 0) {
-    tree.visit((n) => {
+    tree.preOrder((n) => {
       if (n.data) {
         bodies[pos] = n;
         datas[pos] = n.data;
@@ -319,7 +327,7 @@ const datas  = new Array(data.length);
       }
     });
   } else {
-    tree.visit(n => {
+    tree.preOrder(n => {
       if (n.data) {
         for (let i = 0; i < node.data.length; i++) {
           bodies[pos] = n;
@@ -333,7 +341,7 @@ const datas  = new Array(data.length);
 console.timeEnd('collect leafs');
 
 function applyForces(data, tree) {
-  const Q = [];
+  let ops = 0;
   for (let i = 0; i < datas.length; i++) {
     const pt          = datas[i];
     const currentBody = bodies[i];
@@ -361,6 +369,7 @@ function applyForces(data, tree) {
           q = c / dsq;
           fx += dx * q;
           fy += dy * q;
+          ops++;
         } else { // different body - is it well-separated?
           sep = rmax / theta;
           if (dsq >= sep * sep) { // then use it as a solid body
@@ -373,6 +382,7 @@ function applyForces(data, tree) {
             q = c / dsq;
             fx += dx * q;
             fy += dy * q;
+            ops++;
             return true; // and stop descending
           }
         }
@@ -403,11 +413,13 @@ function applyForces(data, tree) {
     currentBody.fx = fx;
     currentBody.fy = fy;
   }
+  return ops;
 }
 
 
 function directCalc(data) {
   let FX = new Array(data.length), FY = new Array(data.length);
+  let ops = 0;
   for (let i = 0; i < data.length; i++) {
     const x = data[i][0], y = data[i][1], ra = 1, ma = 1;
     for (let j = i + 1; j < data.length; j++) {
@@ -428,8 +440,10 @@ function directCalc(data) {
       FY[i] += dy * q;
       FX[j] -= dx * q;
       FY[j] -= dy * q;
+      ops++;
     }
   }
+  return ops;
 }
 
 
@@ -502,46 +516,50 @@ quadtree.visitAfter((quad) => {
   }
 
   quad.value = strength;
-})
+});
 
 function quadApply () {
   const distanceMin2 = 1,
       distanceMax2 = Infinity,
       theta2 = 0.81;
+  let ops = 0;
   for (let i = 0; i < n; i++) {
-  const node = data[i];
-  quadtree.visit((quad, x1, _, x2) => {
-    var x = quad.x - node[0],
-        y = quad.y - node[1],
-        w = x2 - x1,
-        l = x * x + y * y;
+    const node = data[i];
+    quadtree.visit((quad, x1, _, x2) => {
+      var x = quad.x - node[0],
+          y = quad.y - node[1],
+          w = x2 - x1,
+          l = x * x + y * y;
 
-    // Apply the Barnes-Hut approximation if possible.
-    // Limit forces for very close nodes; randomize direction if coincident.
-    if (w * w / theta2 < l) {
-      if (l < distanceMax2) {
-        if (l < distanceMin2) l = Math.sqrt(distanceMin2 * l);
-        node.vx += x * 1 / l;
-        node.vy += y * 1 / l;
+      // Apply the Barnes-Hut approximation if possible.
+      // Limit forces for very close nodes; randomize direction if coincident.
+      if (w * w / theta2 < l) {
+        if (l < distanceMax2) {
+          if (l < distanceMin2) l = Math.sqrt(distanceMin2 * l);
+          node.vx += x * 1 / l;
+          node.vy += y * 1 / l;
+          ops++;
+        }
+        return true;
       }
-      return true;
-    }
 
-    // Otherwise, process points directly.
-    else if (quad.length || l >= distanceMax2) return;
+      // Otherwise, process points directly.
+      else if (quad.length || l >= distanceMax2) return;
 
-    // Limit forces for very close nodes; randomize direction if coincident.
-    if (quad.data !== node || quad.next) {
-      if (l < distanceMin2) l = Math.sqrt(distanceMin2 * l);
-    }
+      // Limit forces for very close nodes; randomize direction if coincident.
+      if (quad.data !== node || quad.next) {
+        if (l < distanceMin2) l = Math.sqrt(distanceMin2 * l);
+      }
 
-    do if (quad.data !== node) {
-      w = 30 / l;
-      node.vx += x * w;
-      node.vy += y * w;
-    } while (quad = quad.next);
-  });
-}
+      do if (quad.data !== node) {
+        w = 30 / l;
+        node.vx += x * w;
+        node.vy += y * w;
+        ops++;
+      } while (quad = quad.next);
+    });
+  }
+  return ops;
 }
 
 

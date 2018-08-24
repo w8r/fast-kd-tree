@@ -4,37 +4,10 @@ import hilbert from './hilbert';
 import sort from './sort';
 //import SFCTree from './sfc-tree';
 import minDisc from './mindisc';
+import InternalNode from './internal_node';
+import { Leaf, BucketLeaf } from './leaf';
 
-class InternalNode {
-  constructor (code, left, right) {
-    this.code   = code;
-    this.left   = left;
-    this.right  = right;
-    left.parent = right.parent = this;
-
-    // this.x0 = Math.min(left.x0, right.x0);
-    // this.y0 = Math.min(left.y0, right.y0);
-    // this.x1 = Math.max(left.x1, right.x1);
-    // this.y1 = Math.max(left.y1, right.y1);
-  }
-}
-
-class Leaf {
-  constructor (code, data) {
-    this.code = code;
-    this.data = data;
-
-    // this.x0 = this.x1 = data[0];
-    // this.y0 = this.y1 = data[1];
-  }
-}
-
-class BucketLeaf {
-  constructor (code, data) {
-    this.code = code;
-    this.data = data;
-  }
-}
+import { inOrder, preOrder, postOrder, map } from './traversals';
 
 
 function buildBuckets (data, ids, codes, first, last, bucketSize) {
@@ -160,7 +133,7 @@ const defaultY = p => p.y;
 
 export default class PHTree {
 
-  constructor(points, getX = defaultX, getY = defaultY, bucketSize = 0, sfc = 'hilbert') {
+  constructor (points, getX = defaultX, getY = defaultY, bucketSize = 0, sfc = 'hilbert') {
     const n     = points.length;
     const codes = new Uint32Array(n);
     let minX = Infinity, minY = Infinity,
@@ -215,78 +188,6 @@ export default class PHTree {
   }
 
 
-  visit (fn, ctx) {
-    const Q = [this._root];
-    while (Q.length !== 0) {
-      const node = Q.pop();
-      if (node) {
-        if (fn.call(ctx, node)) break;
-        if (node.left)  Q.push(node.left);
-        if (node.right) Q.push(node.right);
-      }
-    }
-    return this;
-  }
-
-
-  inOrder (fn, ctx) {
-    let current = this._root;
-    const Q = [];
-    let done = false;
-
-    while (!done) {
-      if (current) {
-        Q.push(current);
-        current = current.left;
-      } else {
-        if (Q.length !== 0) {
-          current = Q.pop();
-          if (fn.call(ctx, current)) break;
-          current = current.right;
-        } else done = true;
-      }
-    }
-    return this;
-  }
-
-
-  preOrder (fn, ctx) {
-    const Q = [this._root];
-    while (Q.length !== 0)  {
-      const node = Q.pop();
-      if (!fn.call(ctx, node)) {
-        if (node.right) Q.push(node.right);
-        if (node.left)  Q.push(node.left);
-      }
-    }
-    return this;
-  }
-
-
-  postOrder (fn, ctx) {
-    const Q = [];
-    let node = this._root, last;
-    do {
-      while (node) {
-        if (node.right) Q.push(node.right);
-        Q.push(node);
-        node = node.left;
-      }
-      node = Q.pop();
-      last = Q.length - 1;
-      if (node.right && Q[last] === node.right) {
-        Q[last] = node;
-        node = node.right;
-      } else {
-        fn.call(ctx, node);
-        node = null;
-      }
-    } while (Q.length !== 0);
-
-    return this;
-  }
-
-
   walk (fn) {
     const stack = [this._minX, this._minY, this._maxX, this._maxY, 0];
     const Q = [this._root];
@@ -333,15 +234,6 @@ export default class PHTree {
   }
 
 
-  map (fn, ctx) {
-    const res = [];
-    this.inOrder(node => {
-      res.push(fn.call(ctx, node));
-    });
-    return res;
-  }
-
-
   height () {
     return height(this._root);
   }
@@ -360,6 +252,12 @@ export default class PHTree {
     return i;
   }
 }
+
+
+PHTree.prototype.inOrder   = inOrder;
+PHTree.prototype.preOrder  = preOrder;
+PHTree.prototype.postOrder = postOrder;
+PHTree.prototype.map       = map;
 
 PHTree.minDisc = minDisc;
 

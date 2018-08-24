@@ -264,11 +264,77 @@
 	  // this.y0 = this.y1 = data[1];
 	};
 
+
 	var BucketLeaf = function BucketLeaf (code, data) {
 	  this.code = code;
 	  this.data = data;
 	};
 
+	function inOrder (fn, ctx) {
+	  var current = this._root;
+	  var Q = [];
+	  var done = false;
+
+	  while (!done) {
+	    if (current) {
+	      Q.push(current);
+	      current = current.left;
+	    } else {
+	      if (Q.length !== 0) {
+	        current = Q.pop();
+	        if (fn.call(ctx, current)) { break; }
+	        current = current.right;
+	      } else { done = true; }
+	    }
+	  }
+	  return this;
+	}
+
+
+	function preOrder (fn, ctx) {
+	  var Q = [this._root];
+	  while (Q.length !== 0)  {
+	    var node = Q.pop();
+	    if (!fn.call(ctx, node)) {
+	      if (node.right) { Q.push(node.right); }
+	      if (node.left)  { Q.push(node.left); }
+	    }
+	  }
+	  return this;
+	}
+
+
+	function postOrder (fn, ctx) {
+	  var Q = [];
+	  var node = this._root, last;
+	  do {
+	    while (node) {
+	      if (node.right) { Q.push(node.right); }
+	      Q.push(node);
+	      node = node.left;
+	    }
+	    node = Q.pop();
+	    last = Q.length - 1;
+	    if (node.right && Q[last] === node.right) {
+	      Q[last] = node;
+	      node = node.right;
+	    } else {
+	      fn.call(ctx, node);
+	      node = null;
+	    }
+	  } while (Q.length !== 0);
+
+	  return this;
+	}
+
+
+	function map (fn, ctx) {
+	  var res = [];
+	  this.inOrder(function (node) {
+	    res.push(fn.call(ctx, node));
+	  });
+	  return res;
+	}
 
 	function buildBuckets (data, ids, codes, first, last, bucketSize) {
 	  if (last - first <= bucketSize) {
@@ -345,7 +411,7 @@
 	var defaultY = function (p) { return p.y; };
 
 
-	var PHTree = function PHTree(points, getX, getY, bucketSize, sfc) {
+	var PHTree = function PHTree (points, getX, getY, bucketSize, sfc) {
 	  if ( getX === void 0 ) getX = defaultX;
 	  if ( getY === void 0 ) getY = defaultY;
 	  if ( bucketSize === void 0 ) bucketSize = 0;
@@ -405,78 +471,6 @@
 	};
 
 
-	PHTree.prototype.visit = function visit (fn, ctx) {
-	  var Q = [this._root];
-	  while (Q.length !== 0) {
-	    var node = Q.pop();
-	    if (node) {
-	      if (fn.call(ctx, node)) { break; }
-	      if (node.left){ Q.push(node.left); }
-	      if (node.right) { Q.push(node.right); }
-	    }
-	  }
-	  return this;
-	};
-
-
-	PHTree.prototype.inOrder = function inOrder (fn, ctx) {
-	  var current = this._root;
-	  var Q = [];
-	  var done = false;
-
-	  while (!done) {
-	    if (current) {
-	      Q.push(current);
-	      current = current.left;
-	    } else {
-	      if (Q.length !== 0) {
-	        current = Q.pop();
-	        if (fn.call(ctx, current)) { break; }
-	        current = current.right;
-	      } else { done = true; }
-	    }
-	  }
-	  return this;
-	};
-
-
-	PHTree.prototype.preOrder = function preOrder (fn, ctx) {
-	  var Q = [this._root];
-	  while (Q.length !== 0){
-	    var node = Q.pop();
-	    if (!fn.call(ctx, node)) {
-	      if (node.right) { Q.push(node.right); }
-	      if (node.left){ Q.push(node.left); }
-	    }
-	  }
-	  return this;
-	};
-
-
-	PHTree.prototype.postOrder = function postOrder (fn, ctx) {
-	  var Q = [];
-	  var node = this._root, last;
-	  do {
-	    while (node) {
-	      if (node.right) { Q.push(node.right); }
-	      Q.push(node);
-	      node = node.left;
-	    }
-	    node = Q.pop();
-	    last = Q.length - 1;
-	    if (node.right && Q[last] === node.right) {
-	      Q[last] = node;
-	      node = node.right;
-	    } else {
-	      fn.call(ctx, node);
-	      node = null;
-	    }
-	  } while (Q.length !== 0);
-
-	  return this;
-	};
-
-
 	PHTree.prototype.walk = function walk (fn) {
 	  var stack = [this._minX, this._minY, this._maxX, this._maxY, 0];
 	  var Q = [this._root];
@@ -521,15 +515,6 @@
 	};
 
 
-	PHTree.prototype.map = function map (fn, ctx) {
-	  var res = [];
-	  this.inOrder(function (node) {
-	    res.push(fn.call(ctx, node));
-	  });
-	  return res;
-	};
-
-
 	PHTree.prototype.height = function height$1 () {
 	  return height(this._root);
 	};
@@ -549,6 +534,12 @@
 	  this.visit(function () { i++; });
 	  return i;
 	};
+
+
+	PHTree.prototype.inOrder   = inOrder;
+	PHTree.prototype.preOrder  = preOrder;
+	PHTree.prototype.postOrder = postOrder;
+	PHTree.prototype.map       = map;
 
 	PHTree.minDisc = minDisc;
 

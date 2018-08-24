@@ -6,7 +6,8 @@
   "scripts": {
     "test": "mocha -r reify test/*.test.js",
     "lint": "eslint src/phtree.js src/sort.js",
-    "bench": "node -r reify bench.js",
+    "bench:build": "node -r reify bench/build.js",
+    "bench:traverse": "node -r reify bench/traverse.js",
     "build": "rollup -c",
     "start": "rollup -cw"
   },

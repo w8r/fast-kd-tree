@@ -31,6 +31,20 @@ module.exports = [{
     buble()
   ]
 }, {
+  input: './src/sfc-tree.js',
+  output: {
+    file: `dist/sfctree.umd.js`,
+    name: 'sfctree',
+    sourcemap: true,
+    format: 'umd',
+    banner
+  },
+  plugins: [
+    resolve(),  // so Rollup can find external libs
+    commonjs(), // so Rollup can convert commonJS to an ES module
+    buble()
+  ]
+}, {
   input: 'demo/index.js',
   output: {
     file: 'demo/bundle.js',
