@@ -10,6 +10,7 @@ export class Leaf {
 
 
 export class BucketLeaf {
+
   constructor (code, data) {
     this.code = code;
     this.data = data;

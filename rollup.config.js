@@ -26,7 +26,7 @@ module.exports = [{
     banner
   },
   plugins: [
-    resolve(),  // so Rollup can find external libs
+    resolve({ browser: true }),  // so Rollup can find external libs
     commonjs(), // so Rollup can convert commonJS to an ES module
     buble()
   ]
@@ -40,7 +40,7 @@ module.exports = [{
     banner
   },
   plugins: [
-    resolve(),  // so Rollup can find external libs
+    resolve({ browser: true }),  // so Rollup can find external libs
     commonjs(), // so Rollup can convert commonJS to an ES module
     buble()
   ]
@@ -56,7 +56,7 @@ module.exports = [{
   },
   external: ['d3'],
   plugins: [
-    resolve(),  // so Rollup can find external libs
+    resolve({ browser: true }),  // so Rollup can find external libs
     commonjs(), // so Rollup can convert commonJS to an ES module
     buble()
   ]

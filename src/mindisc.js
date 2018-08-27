@@ -70,9 +70,8 @@ function combine(P, S, X, Y, R, from2, from3) {
 }
 
 
-export default function minDisc (points, bounds, n, X, Y, R) {
+export function minDisc (points, bounds, n = points.length, X, Y, R) {
   var circle = null;
-
   if (n === 0 || bounds.length === 3) {
     circle = combine(points, bounds, X, Y, R);
   } else {
@@ -86,4 +85,16 @@ export default function minDisc (points, bounds, n, X, Y, R) {
   }
 
   return circle;
+}
+
+export default function (points) {
+  const n = points.length;
+  for (let i = n - 1; i >= 0; i--) {
+    let j = Math.floor(Math.random() * (i + 1));
+    j = Math.max(Math.min(j, i), 0);
+    const tmp = points[i];
+    points[i] = points[j];
+    points[j] = tmp;
+  }
+  return minDisc(points, [], n, X, Y, R);
 }

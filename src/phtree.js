@@ -1,13 +1,20 @@
-import morton from 'morton';
-import hilbert from './hilbert';
-//import hilbert from 'morton';
-import sort from './sort';
-//import SFCTree from './sfc-tree';
-import minDisc from './mindisc';
-import InternalNode from './internal_node';
-import { Leaf, BucketLeaf } from './leaf';
+import morton     from 'morton';
+import hilbert    from './hilbert.js';
+import sort       from './sort.js';
 
-import { inOrder, preOrder, postOrder, map } from './traversals';
+import InternalNode from './internal_node.js';
+import { Leaf, BucketLeaf } from './leaf.js';
+import {
+  map, preOrder, postOrder, inOrder,
+  height, size, toString
+} from './traversals';
+
+const HILBERT = 1;
+const MORTON  = 0;
+
+/**
+ * @typedef {function(*):Number} CoordGetter
+ */
 
 
 function buildBuckets (data, ids, codes, first, last, bucketSize) {
@@ -130,25 +137,36 @@ function findSplit (codes, first, last) {
 const defaultX = p => p.x;
 const defaultY = p => p.y;
 
-
+/**
+ * @public
+ */
 export default class PHTree {
 
-  constructor (points, getX = defaultX, getY = defaultY, bucketSize = 0, sfc = 'hilbert') {
+  /**
+   * @constructor
+   * @param  {Array<*>} points
+   * @param  {CoordGetter}   getX
+   * @param  {CoordGetter}   getY
+   * @param  {Number}   bucketSize
+   * @param  {Number}   sfc
+   */
+  constructor (points, getX = defaultX, getY = defaultY, bucketSize = 0, sfc = HILBERT) {
     const n     = points.length;
     const codes = new Uint32Array(n);
     let minX = Infinity, minY = Infinity,
         maxX = -Infinity, maxY = -Infinity;
     let p, i, x, y;
 
+    /** @type {CoordGetter} */
     this._x = getX;
+    /** @type {CoordGetter} */
     this._y = getY;
 
-    const project = sfc === 'hilbert' ? hilbert : morton;
+    const project = sfc === HILBERT ? hilbert : morton;
     this._project = project;
 
     const ids = new Uint32Array(n);
 
-    //const xz = new Float32Array(n), yz = new Float32Array(n);
     for (i = 0; i < n; i++) {
       p = points[i];
       x = getX(p);
@@ -160,9 +178,13 @@ export default class PHTree {
       ids[i] = i;
     }
 
+    /** @type {Number} */
     this._minX = minX;
+    /** @type {Number} */
     this._minY = minY;
+    /** @type {Number} */
     this._maxX = maxX;
+    /** @type {Number} */
     this._maxY = maxY;
 
     const max = (1 << 16) - 1;
@@ -173,17 +195,18 @@ export default class PHTree {
 
     for (i = 0; i < n; i++) {
       p = points[i];
-      //codes[i] = project(getX(p) - minX, getY(p) - minY);
       codes[i] = project(w * (getX(p) - minX), h * (getY(p) - minY));
     }
     sort(ids, codes);
-    //for (let i = 0; i < n; i++) codes[i] = copy[ids[i]];
 
     if (bucketSize === 0) {
+      /** @type {InternalNode?} */
       this._root = build(points, ids, codes, 0, n - 1);
     } else {
+      /** @type {InternalNode?} */
       this._root = buildBuckets(points, ids, codes, 0, n - 1, bucketSize);
     }
+    /** @type {Number} */
     this._bucketSize = bucketSize;
   }
 
@@ -232,25 +255,6 @@ export default class PHTree {
     });
     return res;
   }
-
-
-  height () {
-    return height(this._root);
-  }
-
-
-  toString (printNode = (n) => n.code) {
-    const out = [];
-    row(this._root, '', true, (v) => out.push(v), printNode);
-    return out.join('');
-  }
-
-
-  size () {
-    let i = 0;
-    this.visit(() => { i++; });
-    return i;
-  }
 }
 
 
@@ -258,28 +262,8 @@ PHTree.prototype.inOrder   = inOrder;
 PHTree.prototype.preOrder  = preOrder;
 PHTree.prototype.postOrder = postOrder;
 PHTree.prototype.map       = map;
+PHTree.prototype.height    = height;
+PHTree.prototype.size      = size;
+PHTree.prototype.toString  = toString;
 
-PHTree.minDisc = minDisc;
-
-
-function height (node) {
-  return node ? (1 + Math.max(height(node.left), height(node.right))) : 0;
-}
-
-
-/**
- * Prints level of the tree
- * @param  {Node}                        root
- * @param  {String}                      prefix
- * @param  {Boolean}                     isTail
- * @param  {Function(in:string):void}    out
- * @param  {Function(node:Node):String}  printNode
- */
-function row (root, prefix, isTail, out, printNode) {
-  if (root) {
-    out(prefix + (isTail ? '^-- ' : '|-- ') + printNode(root) + '\n');
-    const indent = prefix + (isTail ? '    ' : '|   ');
-    if (root.left)  row(root.left,  indent, false, out, printNode);
-    if (root.right) row(root.right, indent, true,  out, printNode);
-  }
-}
+PHTree.SFC = { HILBERT, MORTON };

@@ -27,7 +27,7 @@ new Benchmark.Suite(` build from ${N} points`, options)
   const q = quadtree(points, p => p.x, p => p.y);
 }).add('PH', () => {
   const b = new PH(points);
-}).add('PH reduced', () => {
+}).add('PH reduced (bucket)', () => {
   const b = new PH(points, p => p.x, p => p.y, Math.sqrt(N));
 }).add('mourner/kdbush', () => {
   const kd = kdbush(points, p => p.x, p => p.y, 1);

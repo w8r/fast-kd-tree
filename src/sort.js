@@ -1,4 +1,4 @@
-function qsort(data, values, left, right) {
+function qsort (data, values, left, right) {
   if (left >= right) return;
 
   const pivot = values[(left + right) >> 1];

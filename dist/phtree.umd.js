@@ -135,7 +135,7 @@
 	  return ((i1 << 1) | i0) >>> 0;
 	}
 
-	function qsort(data, values, left, right) {
+	function qsort (data, values, left, right) {
 	  if (left >= right) { return; }
 
 	  var pivot = values[(left + right) >> 1];
@@ -164,96 +164,6 @@
 
 	function sort (coords, codes) {
 	  return qsort(coords, codes, 0, coords.length - 1);
-	}
-
-	function circleContainsCircle(cx, cy, cr, x, y, r) {
-	  var dx = cx - x;
-	  var dy = cy - y;
-	  var dr = cr - r;
-	  // reduce precision not to deal with square roots
-	  return (dx * dx + dy * dy) < (dr * dr + 1e-6);
-	}
-
-	function from2discs(ax, ay, bx, by, ar, br) {
-	  var dx = bx - ax;
-	  var dy = by - ay;
-	  var dr = br - ar;
-	  var l = Math.sqrt(dx * dx + dy * dy);
-
-	  return [
-	    (ax + bx + dx / l * dr) / 2,
-	    (ay + by + dy / l * dr) / 2,
-	    (l + ar + br) / 2
-	  ];
-	}
-
-
-	function from3discs(ax, ay, bx, by, cx, cy, ar, br, cr) {
-	  var a2 = 2 * (ax - bx),
-	    b2 = 2 * (ay - by),
-	    c2 = 2 * (br - ar);
-	  var d2 = ax * ax + ay * ay - ar * ar - bx * bx - by * by + br * br;
-	  var a3 = 2 * (ax - cx),
-	    b3 = 2 * (ay - cy),
-	    c3 = 2 * (cr - ar);
-	  var d3 = ax * ax + ay * ay - ar * ar - cx * cx - cy * cy + cr * cr;
-	  var ab = a3 * b2 - a2 * b3,
-	    xa = (b2 * d3 - b3 * d2) / ab - ax,
-	    xb = (b3 * c2 - b2 * c3) / ab,
-	    ya = (a3 * d2 - a2 * d3) / ab - ay,
-	    yb = (a2 * c3 - a3 * c2) / ab;
-
-	  var A = xb * xb + yb * yb - 1,
-	    B = 2 * (xa * xb + ya * yb + ar),
-	    C = xa * xa + ya * ya - ar * ar,
-	    r = (-B - Math.sqrt(B * B - 4 * A * C)) / (2 * A);
-	  return [
-	    xa + xb * r + ax,
-	    ya + yb * r + ay,
-	    r
-	  ];
-	}
-
-
-	function combine(P, S, X, Y, R, from2, from3) {
-	  var circle = null;
-	  var len = S.length;
-	  var u, v, w;
-
-	  if (len === 1) { // 1 point
-	    u = S[0];
-	    circle = [X(u), Y(u), R(u) || 0];
-	  } else if (len === 2) { // 2 points
-	    u = S[0];
-	    v = S[1];
-	    circle = from2discs(X(u), Y(u), X(v), Y(v), R(u), R(v));
-	  } else if (len === 3) { // 3 points
-	    u = S[0];
-	    v = S[1];
-	    w = S[2];
-	    circle = from3discs(X(u), Y(u), X(v), Y(v), X(w), Y(w), R(u), R(v), R(w));
-	  }
-
-	  return circle;
-	}
-
-
-	function minDisc (points, bounds, n, X, Y, R) {
-	  var circle = null;
-
-	  if (n === 0 || bounds.length === 3) {
-	    circle = combine(points, bounds, X, Y, R);
-	  } else {
-	    var u = points[n - 1];
-	    circle = minDisc(points, bounds, n - 1, X, Y, R);
-	    if (circle === null || !circleContainsCircle(circle[0], circle[1], circle[2], X(u), Y(u), R(u))) {
-	      bounds.push(u);
-	      circle = minDisc(points, bounds, n - 1, X, Y, R);
-	      bounds.pop();
-	    }
-	  }
-
-	  return circle;
 	}
 
 	var InternalNode = function InternalNode (code, left, right) {
@@ -348,6 +258,73 @@
 	  return res;
 	}
 
+
+	/**
+	   * Tree height
+	   * @return {Number}
+	   */
+	function height () {
+	  return treeHeight(this._root);
+	}
+
+
+	  /**
+	   * Print tree
+	   * @public
+	   * @export
+	   * @param  {Function(Node):String} [printNode]
+	   * @return {String}
+	   */
+	function toString (printNode) {
+	  if ( printNode === void 0 ) printNode = function (n) { return n.code; };
+
+	  var out = [];
+	  row(this._root, '', true, function (v) { return out.push(v); }, printNode);
+	  return out.join('');
+	}
+
+
+	  /**
+	   * Number of nodes
+	   * @return {Number}
+	   */
+	function size () {
+	  var i = 0;
+	  this.preOrder(function () { i++; });
+	  return i;
+	}
+
+
+	function treeHeight (node) {
+	  return node ? (1 + Math.max(treeHeight(node.left), treeHeight(node.right))) : 0;
+	}
+
+
+	/**
+	 * Prints level of the tree
+	 * @param  {Node}                        root
+	 * @param  {String}                      prefix
+	 * @param  {Boolean}                     isTail
+	 * @param  {Function(in:string):void}    out
+	 * @param  {Function(node:Node):String}  printNode
+	 */
+	function row (root, prefix, isTail, out, printNode) {
+	  if (root) {
+	    out(prefix + (isTail ? '^-- ' : '|-- ') + printNode(root) + '\n');
+	    var indent = prefix + (isTail ? '    ' : '|   ');
+	    if (root.left)  { row(root.left,  indent, false, out, printNode); }
+	    if (root.right) { row(root.right, indent, true,  out, printNode); }
+	  }
+	}
+
+	var HILBERT = 1;
+	var MORTON  = 0;
+
+	/**
+	 * @typedef {function(*):Number} CoordGetter
+	 */
+
+
 	function buildBuckets (data, ids, codes, first, last, bucketSize) {
 	  if (last - first <= bucketSize) {
 	    var bucket = new Array(last - first + 1);
@@ -422,12 +399,14 @@
 	var defaultX = function (p) { return p.x; };
 	var defaultY = function (p) { return p.y; };
 
-
+	/**
+	 * @public
+	 */
 	var PHTree = function PHTree (points, getX, getY, bucketSize, sfc) {
 	  if ( getX === void 0 ) getX = defaultX;
 	  if ( getY === void 0 ) getY = defaultY;
 	  if ( bucketSize === void 0 ) bucketSize = 0;
-	  if ( sfc === void 0 ) sfc = 'hilbert';
+	  if ( sfc === void 0 ) sfc = HILBERT;
 
 	  var n   = points.length;
 	  var codes = new Uint32Array(n);
@@ -435,15 +414,16 @@
 	      maxX = -Infinity, maxY = -Infinity;
 	  var p, i, x, y;
 
+	  /** @type {CoordGetter} */
 	  this._x = getX;
+	  /** @type {CoordGetter} */
 	  this._y = getY;
 
-	  var project = sfc === 'hilbert' ? hilbert : morton_1;
+	  var project = sfc === HILBERT ? hilbert : morton_1;
 	  this._project = project;
 
 	  var ids = new Uint32Array(n);
 
-	  //const xz = new Float32Array(n), yz = new Float32Array(n);
 	  for (i = 0; i < n; i++) {
 	    p = points[i];
 	    x = getX(p);
@@ -455,9 +435,13 @@
 	    ids[i] = i;
 	  }
 
+	  /** @type {Number} */
 	  this._minX = minX;
+	  /** @type {Number} */
 	  this._minY = minY;
+	  /** @type {Number} */
 	  this._maxX = maxX;
+	  /** @type {Number} */
 	  this._maxY = maxY;
 
 	  var max = (1 << 16) - 1;
@@ -468,17 +452,18 @@
 
 	  for (i = 0; i < n; i++) {
 	    p = points[i];
-	    //codes[i] = project(getX(p) - minX, getY(p) - minY);
 	    codes[i] = project(w * (getX(p) - minX), h * (getY(p) - minY));
 	  }
 	  sort(ids, codes);
-	  //for (let i = 0; i < n; i++) codes[i] = copy[ids[i]];
 
 	  if (bucketSize === 0) {
+	    /** @type {InternalNode?} */
 	    this._root = build(points, ids, codes, 0, n - 1);
 	  } else {
+	    /** @type {InternalNode?} */
 	    this._root = buildBuckets(points, ids, codes, 0, n - 1, bucketSize);
 	  }
+	  /** @type {Number} */
 	  this._bucketSize = bucketSize;
 	};
 
@@ -527,56 +512,15 @@
 	};
 
 
-	PHTree.prototype.height = function height$1 () {
-	  return height(this._root);
-	};
-
-
-	PHTree.prototype.toString = function toString (printNode) {
-	    if ( printNode === void 0 ) printNode = function (n) { return n.code; };
-
-	  var out = [];
-	  row(this._root, '', true, function (v) { return out.push(v); }, printNode);
-	  return out.join('');
-	};
-
-
-	PHTree.prototype.size = function size () {
-	  var i = 0;
-	  this.visit(function () { i++; });
-	  return i;
-	};
-
-
 	PHTree.prototype.inOrder   = inOrder;
 	PHTree.prototype.preOrder  = preOrder;
 	PHTree.prototype.postOrder = postOrder;
 	PHTree.prototype.map       = map;
+	PHTree.prototype.height    = height;
+	PHTree.prototype.size      = size;
+	PHTree.prototype.toString  = toString;
 
-	PHTree.minDisc = minDisc;
-
-
-	function height (node) {
-	  return node ? (1 + Math.max(height(node.left), height(node.right))) : 0;
-	}
-
-
-	/**
-	 * Prints level of the tree
-	 * @param  {Node}                        root
-	 * @param  {String}                      prefix
-	 * @param  {Boolean}                     isTail
-	 * @param  {Function(in:string):void}    out
-	 * @param  {Function(node:Node):String}  printNode
-	 */
-	function row (root, prefix, isTail, out, printNode) {
-	  if (root) {
-	    out(prefix + (isTail ? '^-- ' : '|-- ') + printNode(root) + '\n');
-	    var indent = prefix + (isTail ? '    ' : '|   ');
-	    if (root.left)  { row(root.left,  indent, false, out, printNode); }
-	    if (root.right) { row(root.right, indent, true,  out, printNode); }
-	  }
-	}
+	PHTree.SFC = { HILBERT: HILBERT, MORTON: MORTON };
 
 	return PHTree;
 
