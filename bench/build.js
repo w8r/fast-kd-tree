@@ -31,8 +31,8 @@ new Benchmark.Suite(` build from ${N} points`, options)
   const b = new PH(points, p => p.x, p => p.y, Math.sqrt(N));
 }).add('mourner/kdbush', () => {
   const kd = kdbush(points, p => p.x, p => p.y, 1);
-// }).add('simple kd', () => {
-//   const q = new skd(points);
+}).add('simple kd', () => {
+  const q = new skd(points);
 }).add('double-sort', () => {
   const X = new Array(points.length);
   const Y = new Array(points.length);

@@ -1,4 +1,5 @@
 export default class skd {
+
   constructor(points) {
     const n = points.length;
     this.ids = new Array(n);
