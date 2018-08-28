@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "moduleResolution": "node",
+    "target": "es3",
+    "module": "umd",
+    "removeComments": false,
+    "preserveConstEnums": true,
+    "sourceMap": true,
+    "outDir": "dist"
+  },
+
+  "include": ["./ts/*.ts"],
+  "moduleResolution": "node"
+}
