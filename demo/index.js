@@ -1,7 +1,9 @@
 import seedrandom from 'seedrandom';
 import phtree from '../src/phtree';
 import sfctree from '../src/sfc-tree';
+import ubtree from '../src/ubtree';
 import minDisc from '../src/mindisc';
+
 
 Math.seedrandom('query');
 
@@ -47,6 +49,12 @@ console.timeEnd('build');
 console.time('quadtree');
 var quadtree = new d3.quadtree(data, p => p[0], p => p[1]);
 console.timeEnd('quadtree');
+
+console.time('ubtree');
+var u = new ubtree(data, p => p[0], p => p[1]);
+console.timeEnd('ubtree');
+window.u = u;
+window.tree = tree;
 
 svg
   .append('path')
@@ -501,3 +509,86 @@ function quadApply () {
   }
   return ops;
 }
+
+
+function getTightBoxesBST(node) {
+  let xmin = tree._maxX, ymin = tree._maxY,
+      xmax = tree._minX, ymax = tree._minY;
+    //const data = node.data;
+  xmin = xmax = tree._x(node.data);
+  ymin = ymax = tree._y(node.data);
+    
+  let child = node.left;
+  if (child) {
+    xmin = Math.min(xmin, child.x0);
+    ymin = Math.min(ymin, child.y0);
+    xmax = Math.max(xmax, child.x1);
+    ymax = Math.max(ymax, child.y1);
+  }
+  child = node.right;
+  if (child) {
+    xmin = Math.min(xmin, child.x0);
+    ymin = Math.min(ymin, child.y0);
+    xmax = Math.max(xmax, child.x1);
+    ymax = Math.max(ymax, child.y1);
+  }
+
+  node.x0 = xmin;
+  node.y0 = ymin;
+  node.x1 = xmax;
+  node.y1 = ymax;
+}
+
+console.time('bst tight');
+u.postOrder(getTightBoxesBST);
+console.timeEnd('bst tight');
+
+console.time('ubtree accumulate');
+u.postOrder((node) => {
+  let cx, cy, r, m, child;
+    
+  cx = tree._x(node.data);
+  cy = tree._y(node.data);
+  r = 1;
+  m = 1; // mass
+
+  child = node.left;
+  if (child) {
+    const ax = cx,  ay = cy;
+    const bx = child.cx, by = child.cy;
+    const ar = r, br = child.r;
+    const dx = bx - ax, dy = by - ay;
+
+    const dr = br - ar;
+    const l = Math.sqrt(dx * dx + dy * dy);
+
+    cx = (ax + bx + dx / l * dr) / 2;
+    cy = (ay + by + dy / l * dr) / 2;
+    r = (l + ar + br) / 2;
+
+    m += child.mass;
+  }
+
+  child = node.right;
+  if (child) {
+    const ax = cx,  ay = cy;
+    const bx = child.cx, by = child.cy;
+    const ar = r, br = child.r;
+    const dx = bx - ax, dy = by - ay;
+
+    const dr = br - ar;
+    const l = Math.sqrt(dx * dx + dy * dy);
+
+    cx = (ax + bx + dx / l * dr) / 2;
+    cy = (ay + by + dy / l * dr) / 2;
+    r = (l + ar + br) / 2;
+
+    m += child.mass;
+  }
+
+  node.cx   = cx;
+  node.cy   = cy;
+  node.r    = r;
+  node.mass = m;
+});
+console.timeEnd('ubtree accumulate');

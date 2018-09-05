@@ -7,6 +7,7 @@ import sort from '../src/sort';
 import sq from '../src/generic-quadtree';
 import LQ from '../src/linear-quadtree';
 import skd from '../src/kdtree';
+import UBTree from '../src/ubtree';
 import PH from '../dist/phtree.umd';
 import seedrandom from 'seedrandom';
 
@@ -23,6 +24,7 @@ const points = new Array(N).fill(0).map((_, i) => {
 
 const Q = quadtree(points, p => p.x, p => p.y);
 const P = new PH(points);
+const U = new UBTree(points);
 
 new Benchmark.Suite(` visit tree of ${N} points`, options)
 .add('d3 quadtree', () => {
@@ -32,6 +34,11 @@ new Benchmark.Suite(` visit tree of ${N} points`, options)
 .add('ph', () => {
   let i = 0;
   P.inOrder(() => {
+    i++;
+  });
+}).add('ubtree', () => {
+  let i = 0;
+  U.inOrder(() => {
     i++;
   });
 }).run();

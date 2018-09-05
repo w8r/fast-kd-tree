@@ -1,4 +1,4 @@
-function circleContainsCircle(cx, cy, cr, x, y, r) {
+export function circleContainsCircle(cx, cy, cr, x, y, r) {
   const dx = cx - x;
   const dy = cy - y;
   const dr = cr - r;
@@ -6,7 +6,7 @@ function circleContainsCircle(cx, cy, cr, x, y, r) {
   return (dx * dx + dy * dy) < (dr * dr + 1e-6);
 }
 
-function from2discs(ax, ay, bx, by, ar, br) {
+export function from2discs(ax, ay, bx, by, ar, br) {
   const dx = bx - ax;
   const dy = by - ay;
   const dr = br - ar;
@@ -20,7 +20,7 @@ function from2discs(ax, ay, bx, by, ar, br) {
 }
 
 
-function from3discs(ax, ay, bx, by, cx, cy, ar, br, cr) {
+export function from3discs(ax, ay, bx, by, cx, cy, ar, br, cr) {
   var a2 = 2 * (ax - bx),
     b2 = 2 * (ay - by),
     c2 = 2 * (br - ar);
