@@ -7,6 +7,8 @@ import sort from '../src/sort';
 import sq from '../src/generic-quadtree';
 import LQ from '../src/linear-quadtree';
 import skd from '../src/kdtree';
+import DynamicKDTree from '../src/dynamic-kdtree';
+import kdt from '../src/kdt';
 import PH from '../dist/phtree.umd';
 import UB from '../src/ubtree';
 import seedrandom from 'seedrandom';
@@ -34,8 +36,12 @@ new Benchmark.Suite(` build from ${N} points`, options)
   const kd = kdbush(points, p => p.x, p => p.y, 1);
 }).add('simple kd', () => {
   const q = new skd(points);
+}).add('in-place kdtree', () => {
+  const k = new kdt(points);
 }).add('UB-tree', () => {
   const u = new UB(points);
+}).add('dynamic kd-tree', () => {
+  const dkd = new DynamicKDTree(points, d => d.x, d => d.y);
 }).add('double-sort', () => {
   const X = new Array(points.length);
   const Y = new Array(points.length);

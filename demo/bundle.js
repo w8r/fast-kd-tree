@@ -1131,6 +1131,9 @@
 	var BucketLeaf = function BucketLeaf (code, data) {
 	  this.code = code;
 	  this.data = data;
+	    
+	  // this.x0 = data.x1 = data[0];
+	  // this.y0 = data.y1 = data[1];
 	};
 
 	function inOrder (fn, ctx) {
@@ -2246,13 +2249,13 @@
 	var defaultGetY = function (d) { return d.y; };
 
 	var HILBERT$1 = 1;
-	var MORTON$1 = 2;
+
 
 	var UBTree = function UBTree (data, getX, getY, sfc) {
 			var this$1 = this;
 			if ( getX === void 0 ) getX = defaultGetX;
 			if ( getY === void 0 ) getY = defaultGetY;
-			if ( sfc === void 0 ) sfc = MORTON$1;
+			if ( sfc === void 0 ) sfc = HILBERT$1;
 
 			this._tree = new Tree();
 
@@ -2261,9 +2264,7 @@
 	      maxX = -Infinity, maxY = -Infinity;
 	  var p, i, x, y;
 
-	  /** @type {CoordGetter} */
 	  this._x = getX;
-	  /** @type {CoordGetter} */
 	  this._y = getY;
 
 	  var project = sfc === HILBERT$1 ? hilbert : morton_1;
@@ -2279,13 +2280,9 @@
 	    if (y > maxY) { maxY = y; }
 	  }
 
-	  /** @type {Number} */
 	  this._minX = minX;
-	  /** @type {Number} */
 	  this._minY = minY;
-	  /** @type {Number} */
 	  this._maxX = maxX;
-	  /** @type {Number} */
 	  this._maxY = maxY;
 
 	  var max = (1 << 16) - 1;
@@ -2317,7 +2314,7 @@
 	svg.attr("width", width);
 	svg.attr("height", height$1);
 
-	var random = Math.random, n = 5000;
+	var random = Math.random, n = 1000;
 
 	var data = d3.range(n).map(function() {
 	  return [random() * width, random() * height$1];
@@ -2564,107 +2561,6 @@
 	})();
 	console.timeEnd('collect leafs');
 
-
-	(function () {
-	  var cur = bodies[n >> 1];
-	  var pt = datas[n >> 1];
-	  pt.selected = true;
-	  tree.preOrder(function (node) {
-	    if (node !== cur) {
-	      if (node.data) {
-	        node.data.selected = true;
-	      } else {
-	        var dx = cur.cx - node.cx;
-	        var dy = cur.cy - node.cy;
-	        var dsq = dx * dx + dy * dy;
-	        var rmax = cur.r + node.r;
-
-	        if (dsq >= (rmax / theta) * (rmax / theta)) {
-	          node.scanned = true;
-	          return true;
-	        }
-	      }
-	    }
-	  });
-	  show();
-	}) ();
-
-
-	svg.selectAll(".node")
-	  .data(nodes(tree))
-	  .enter().append("rect")
-	    .attr("class", function (d) { return d.scanned ? 'node node--scanned' : 'node'; })
-	    .attr("x", function (d)  { return d.x0; })
-	    .attr("y", function (d) { return d.y0; })
-	    .attr("width", function (d) { return d.x1 - d.x0; })
-	    .attr("height", function (d) { return d.y1 - d.y0; });
-
-
-
-	var med = svg.selectAll(".med")
-	  .data(tree.map(function (n) { return [n.cx, n.cy, n.r, n.scanned]; }))
-	  .enter().append("circle")
-	    .attr("class", "med")
-	    .attr("cx", function (d) { return d[0]; })
-	    .attr("cy", function (d) { return d[1]; })
-	    .attr("r",  function (d) { return d[2]; });
-
-
-	quadtree.visitAfter(function (quad) {
-	  var strength = 0, q, c, weight = 0, x, y, i;
-
-	  // For internal nodes, accumulate forces from child quadrants.
-	  if (quad.length) {
-	    for (x = y = i = 0; i < 4; ++i) {
-	      if ((q = quad[i]) && (c = Math.abs(q.value))) {
-	        strength += q.value, weight += c, x += c * q.x, y += c * q.y;
-	      }
-	    }
-	    quad.x = x / weight;
-	    quad.y = y / weight;
-	  }
-
-	  // For leaf nodes, accumulate forces from coincident quadrants.
-	  else {
-	    q = quad;
-	    q.x = q.data[0];
-	    q.y = q.data[1];
-	    do { strength += 30; }
-	    while (q = q.next);
-	  }
-
-	  quad.value = strength;
-	});
-
-
-	function getTightBoxesBST(node) {
-	  var xmin = tree._maxX, ymin = tree._maxY,
-	      xmax = tree._minX, ymax = tree._minY;
-	    //const data = node.data;
-	  xmin = xmax = tree._x(node.data);
-	  ymin = ymax = tree._y(node.data);
-	    
-	  var child = node.left;
-	  if (child) {
-	    xmin = Math.min(xmin, child.x0);
-	    ymin = Math.min(ymin, child.y0);
-	    xmax = Math.max(xmax, child.x1);
-	    ymax = Math.max(ymax, child.y1);
-	  }
-	  child = node.right;
-	  if (child) {
-	    xmin = Math.min(xmin, child.x0);
-	    ymin = Math.min(ymin, child.y0);
-	    xmax = Math.max(xmax, child.x1);
-	    ymax = Math.max(ymax, child.y1);
-	  }
-
-	  node.x0 = xmin;
-	  node.y0 = ymin;
-	  node.x1 = xmax;
-	  node.y1 = ymax;
-	}
-
 	console.time('bst tight');
 	u.postOrder(getTightBoxesBST);
 	console.timeEnd('bst tight');
@@ -2718,5 +2614,128 @@
 	  node.mass = m;
 	});
 	console.timeEnd('ubtree accumulate');
+
+
+	(function () {
+	  var cur = bodies[n >> 1];
+	  var pt = datas[n >> 1];
+	  pt.selected = true;
+	  tree.preOrder(function (node) {
+	    if (node !== cur) {
+	      if (node.data) {
+	        node.data.selected = true;
+	      } else {
+	        var dx = cur.cx - node.cx;
+	        var dy = cur.cy - node.cy;
+	        var dsq = dx * dx + dy * dy;
+	        var rmax = cur.r + node.r;
+
+	        if (dsq >= (rmax / theta) * (rmax / theta)) {
+	          node.scanned = true;
+	          return true;
+	        }
+	      }
+	    }
+	  });
+	  show();
+	}) ();
+
+
+
+
+
+	quadtree.visitAfter(function (quad) {
+	  var strength = 0, q, c, weight = 0, x, y, i;
+
+	  // For internal nodes, accumulate forces from child quadrants.
+	  if (quad.length) {
+	    for (x = y = i = 0; i < 4; ++i) {
+	      if ((q = quad[i]) && (c = Math.abs(q.value))) {
+	        strength += q.value, weight += c, x += c * q.x, y += c * q.y;
+	      }
+	    }
+	    quad.x = x / weight;
+	    quad.y = y / weight;
+	  }
+
+	  // For leaf nodes, accumulate forces from coincident quadrants.
+	  else {
+	    q = quad;
+	    q.x = q.data[0];
+	    q.y = q.data[1];
+	    do { strength += 30; }
+	    while (q = q.next);
+	  }
+
+	  quad.value = strength;
+	});
+
+
+	function getTightBoxesBST (node) {
+	  //const data = node.data;
+	  var xmin = tree._x(node.data);
+	  var xmax = xmin;
+	  var ymin = tree._y(node.data);
+	  var ymax = ymin;
+	    
+	  var child = node.left;
+	  if (child) {
+	    xmin = Math.min(xmin, child.x0);
+	    ymin = Math.min(ymin, child.y0);
+	    xmax = Math.max(xmax, child.x1);
+	    ymax = Math.max(ymax, child.y1);
+	  }
+	  child = node.right;
+	  if (child) {
+	    xmin = Math.min(xmin, child.x0);
+	    ymin = Math.min(ymin, child.y0);
+	    xmax = Math.max(xmax, child.x1);
+	    ymax = Math.max(ymax, child.y1);
+	  }
+
+	  node.x0 = xmin;
+	  node.y0 = ymin;
+	  node.x1 = xmax;
+	  node.y1 = ymax;
+	}
+
+
+	svg.selectAll(".node")
+	  .data(nodes(tree))
+	  .enter().append("rect")
+	    .attr("class", function (d) { return d.scanned ? 'node node--scanned' : 'node'; })
+	    .attr("x", function (d)  { return d.x0; })
+	    .attr("y", function (d) { return d.y0; })
+	    .attr("width", function (d) { return d.x1 - d.x0; })
+	    .attr("height", function (d) { return d.y1 - d.y0; });
+
+
+
+	var med = svg.selectAll(".med")
+	  .data(tree.map(function (n) { return [n.cx, n.cy, n.r, n.scanned]; }))
+	  .enter().append("circle")
+	    .attr("class", "med")
+	    .attr("cx", function (d) { return d[0]; })
+	    .attr("cy", function (d) { return d[1]; })
+	    .attr("r",  function (d) { return d[2]; });
+
+
+	// svg.selectAll(".node")
+	//   .data(nodesUB(u))
+	//   .enter().append("rect")
+	//     .attr("class", d => d.scanned ? 'node node--scanned' : 'node')
+	//     .attr("x", d  => d.x0)
+	//     .attr("y", d => d.y0)
+	//     .attr("width", d => d.x1 - d.x0)
+	//     .attr("height", d => d.y1 - d.y0);
+
+
+	// const med = svg.selectAll(".med")
+	//   .data(u.map((n) => [n.cx, n.cy, n.r, n.scanned]))
+	//   .enter().append("circle")
+	//     .attr("class", "med")
+	//     .attr("cx", d => d[0])
+	//     .attr("cy", d => d[1])
+	//     .attr("r",  d => d[2]);
 
 }());

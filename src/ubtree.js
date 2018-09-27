@@ -14,9 +14,10 @@ const defaultGetY = d => d.y;
 const HILBERT = 1;
 const MORTON = 2;
 
+
 export default class UBTree {
 
-	constructor (data, getX = defaultGetX, getY = defaultGetY, sfc = MORTON) {
+	constructor (data, getX = defaultGetX, getY = defaultGetY, sfc = HILBERT) {
 		this._tree = new BST();
 
     const n = data.length;
@@ -24,9 +25,7 @@ export default class UBTree {
         maxX = -Infinity, maxY = -Infinity;
     let p, i, x, y;
 
-    /** @type {CoordGetter} */
     this._x = getX;
-    /** @type {CoordGetter} */
     this._y = getY;
 
     const project = sfc === HILBERT ? hilbert : morton;
@@ -42,13 +41,9 @@ export default class UBTree {
       if (y > maxY) maxY = y;
     }
 
-    /** @type {Number} */
     this._minX = minX;
-    /** @type {Number} */
     this._minY = minY;
-    /** @type {Number} */
     this._maxX = maxX;
-    /** @type {Number} */
     this._maxY = maxY;
 
     const max = (1 << 16) - 1;

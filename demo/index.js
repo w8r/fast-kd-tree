@@ -14,7 +14,7 @@ svg.attr("width", width);
 svg.attr("height", height);
 var selected;
 
-var random = Math.random, n = 5000;
+var random = Math.random, n = 1000;
 
 var data = d3.range(n).map(function() {
   return [random() * width, random() * height];
@@ -127,6 +127,18 @@ function nodes(tree) {
   // });
   tree.postOrder(getTightBoxes);
   tree.preOrder(n => { if (!n.data) nodes.push(n); });
+  return nodes;
+}
+
+function nodesUB(tree) {
+  var nodes = [];
+  // tree.walk((node, x0, y0, x1, y1) => {
+  //   node.x0 = x0, node.y0 = y0;
+  //   node.x1 = x1, node.y1 = y1;
+  //   nodes.push(node);
+  // });
+  tree.postOrder(getTightBoxesBST);
+  tree.preOrder(n => { nodes.push(n); });
   return nodes;
 }
 
@@ -288,6 +300,60 @@ const datas  = new Array(data.length);
 })();
 console.timeEnd('collect leafs');
 
+console.time('bst tight');
+u.postOrder(getTightBoxesBST);
+console.timeEnd('bst tight');
+
+console.time('ubtree accumulate');
+u.postOrder((node) => {
+  let cx, cy, r, m, child;
+    
+  cx = tree._x(node.data);
+  cy = tree._y(node.data);
+  r = 1;
+  m = 1; // mass
+
+  child = node.left;
+  if (child) {
+    const ax = cx,  ay = cy;
+    const bx = child.cx, by = child.cy;
+    const ar = r, br = child.r;
+    const dx = bx - ax, dy = by - ay;
+
+    const dr = br - ar;
+    const l = Math.sqrt(dx * dx + dy * dy);
+
+    cx = (ax + bx + dx / l * dr) / 2;
+    cy = (ay + by + dy / l * dr) / 2;
+    r = (l + ar + br) / 2;
+
+    m += child.mass;
+  }
+
+  child = node.right;
+  if (child) {
+    const ax = cx,  ay = cy;
+    const bx = child.cx, by = child.cy;
+    const ar = r, br = child.r;
+    const dx = bx - ax, dy = by - ay;
+
+    const dr = br - ar;
+    const l = Math.sqrt(dx * dx + dy * dy);
+
+    cx = (ax + bx + dx / l * dr) / 2;
+    cy = (ay + by + dy / l * dr) / 2;
+    r = (l + ar + br) / 2;
+
+    m += child.mass;
+  }
+
+  node.cx   = cx;
+  node.cy   = cy;
+  node.r    = r;
+  node.mass = m;
+});
+console.timeEnd('ubtree accumulate');
+
 function applyForces(data, tree) {
   let ops = 0;
   for (let i = 0; i < datas.length; i++) {
@@ -420,24 +486,7 @@ function directCalc(data) {
 }) ();
 
 
-svg.selectAll(".node")
-  .data(nodes(tree))
-  .enter().append("rect")
-    .attr("class", d => d.scanned ? 'node node--scanned' : 'node')
-    .attr("x", d  => d.x0)
-    .attr("y", d => d.y0)
-    .attr("width", d => d.x1 - d.x0)
-    .attr("height", d => d.y1 - d.y0);
 
-
-
-const med = svg.selectAll(".med")
-  .data(tree.map((n) => [n.cx, n.cy, n.r, n.scanned]))
-  .enter().append("circle")
-    .attr("class", "med")
-    .attr("cx", d => d[0])
-    .attr("cy", d => d[1])
-    .attr("r",  d => d[2]);
 
 
 quadtree.visitAfter((quad) => {
@@ -511,12 +560,12 @@ function quadApply () {
 }
 
 
-function getTightBoxesBST(node) {
-  let xmin = tree._maxX, ymin = tree._maxY,
-      xmax = tree._minX, ymax = tree._minY;
-    //const data = node.data;
-  xmin = xmax = tree._x(node.data);
-  ymin = ymax = tree._y(node.data);
+function getTightBoxesBST (node) {
+  //const data = node.data;
+  let xmin = tree._x(node.data);
+  let xmax = xmin;
+  let ymin = tree._y(node.data);
+  let ymax = ymin;
     
   let child = node.left;
   if (child) {
@@ -539,56 +588,41 @@ function getTightBoxesBST(node) {
   node.y1 = ymax;
 }
 
-console.time('bst tight');
-u.postOrder(getTightBoxesBST);
-console.timeEnd('bst tight');
 
-console.time('ubtree accumulate');
-u.postOrder((node) => {
-  let cx, cy, r, m, child;
-    
-  cx = tree._x(node.data);
-  cy = tree._y(node.data);
-  r = 1;
-  m = 1; // mass
+svg.selectAll(".node")
+  .data(nodes(tree))
+  .enter().append("rect")
+    .attr("class", d => d.scanned ? 'node node--scanned' : 'node')
+    .attr("x", d  => d.x0)
+    .attr("y", d => d.y0)
+    .attr("width", d => d.x1 - d.x0)
+    .attr("height", d => d.y1 - d.y0);
 
-  child = node.left;
-  if (child) {
-    const ax = cx,  ay = cy;
-    const bx = child.cx, by = child.cy;
-    const ar = r, br = child.r;
-    const dx = bx - ax, dy = by - ay;
 
-    const dr = br - ar;
-    const l = Math.sqrt(dx * dx + dy * dy);
 
-    cx = (ax + bx + dx / l * dr) / 2;
-    cy = (ay + by + dy / l * dr) / 2;
-    r = (l + ar + br) / 2;
+const med = svg.selectAll(".med")
+  .data(tree.map((n) => [n.cx, n.cy, n.r, n.scanned]))
+  .enter().append("circle")
+    .attr("class", "med")
+    .attr("cx", d => d[0])
+    .attr("cy", d => d[1])
+    .attr("r",  d => d[2]);
 
-    m += child.mass;
-  }
 
-  child = node.right;
-  if (child) {
-    const ax = cx,  ay = cy;
-    const bx = child.cx, by = child.cy;
-    const ar = r, br = child.r;
-    const dx = bx - ax, dy = by - ay;
+// svg.selectAll(".node")
+//   .data(nodesUB(u))
+//   .enter().append("rect")
+//     .attr("class", d => d.scanned ? 'node node--scanned' : 'node')
+//     .attr("x", d  => d.x0)
+//     .attr("y", d => d.y0)
+//     .attr("width", d => d.x1 - d.x0)
+//     .attr("height", d => d.y1 - d.y0);
 
-    const dr = br - ar;
-    const l = Math.sqrt(dx * dx + dy * dy);
 
-    cx = (ax + bx + dx / l * dr) / 2;
-    cy = (ay + by + dy / l * dr) / 2;
-    r = (l + ar + br) / 2;
-
-    m += child.mass;
-  }
-
-  node.cx   = cx;
-  node.cy   = cy;
-  node.r    = r;
-  node.mass = m;
-});
-console.timeEnd('ubtree accumulate');
+// const med = svg.selectAll(".med")
+//   .data(u.map((n) => [n.cx, n.cy, n.r, n.scanned]))
+//   .enter().append("circle")
+//     .attr("class", "med")
+//     .attr("cx", d => d[0])
+//     .attr("cy", d => d[1])
+//     .attr("r",  d => d[2]);
