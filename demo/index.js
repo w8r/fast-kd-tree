@@ -39,7 +39,7 @@ var data = d3.range(n).map(function() {
 
 const nodeSize = 0; //Math.sqrt(n) | 0;
 console.time('build');
-var tree = new phtree(data, p => p[0], p => p[1], nodeSize, phtree.SFC.MORTON);
+var tree = new phtree(data, p => p[0], p => p[1], nodeSize, phtree.SFC.HILBERT);
 console.timeEnd('build');
 
 // console.time('build sfc');
@@ -307,7 +307,7 @@ console.timeEnd('bst tight');
 console.time('ubtree accumulate');
 u.postOrder((node) => {
   let cx, cy, r, m, child;
-    
+
   cx = tree._x(node.data);
   cy = tree._y(node.data);
   r = 1;
@@ -566,7 +566,7 @@ function getTightBoxesBST (node) {
   let xmax = xmin;
   let ymin = tree._y(node.data);
   let ymax = ymin;
-    
+
   let child = node.left;
   if (child) {
     xmin = Math.min(xmin, child.x0);

@@ -37,6 +37,7 @@ function buildBuckets (data, ids, codes, first, last, bucketSize) {
 function build (data, ids, codes, first, last) {
   if (last - first === 0) return new Leaf(codes[first], data[ids[first]]);
   const split = findSplit(codes, first, last);
+  //const split = first + ((last - first) >> 1);
   const left  = build(data, ids, codes, first, split);
   const right = build(data, ids, codes, split + 1, last);
   // const nd = [left, right];
@@ -56,35 +57,38 @@ class Node {
 
 
 function buildIterative (data, ids, codes, start, end) {
-  let root = new Node();
+  let root = new Node(0);
+  let parent = null;
   const Q = [root];
   const stack = [start, end];
 
   while (Q.length !== 0) {
-    const right = stack.pop();
-    const left  = stack.pop();
+    const last  = stack.pop();
+    const first = stack.pop();
     const node  = Q.pop();
 
-    const mid = findSplit(codes, left, right);
     //const mid = (left + right) >> 1;
-    if (left - right === 0) {
-      node.code = codes[left];
-      node.data = data[ids[left]];
+    if (last - first === 0) {
+      node.code = codes[first];
+      node.data = data[ids[first]];
     } else {
-      node.code = codes[mid];
+      const split = findSplit(codes, first, last);
 
+      node.code = split;
+      node.data = null;
 
-      if (left < mid) {
+      if (first <= split) {
         node.left = new Node();
+        node.left.parent = node;
         Q.push(node.left);
-        stack.push(left, mid);
+        stack.push(first, split);
       }
 
-
-      if (right > mid) {
+      if (last > split) {
         node.right = new Node();
+        node.right.parent = node;
         Q.push(node.right);
-        stack.push(mid + 1, right);
+        stack.push(split + 1, last);
       }
     }
   }
@@ -201,7 +205,7 @@ export default class PHTree {
 
     if (bucketSize === 0) {
       /** @type {InternalNode?} */
-      this._root = build(points, ids, codes, 0, n - 1);
+      this._root = buildIterative(points, ids, codes, 0, n - 1);
     } else {
       /** @type {InternalNode?} */
       this._root = buildBuckets(points, ids, codes, 0, n - 1, bucketSize);
