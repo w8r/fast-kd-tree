@@ -48,16 +48,18 @@ function build (data, ids, codes, first, last) {
 
 
 class Node {
-  constructor (code) {
-    this.code = code;
-    this.left = this.right = null;
-    this.data = null;
+  constructor (parent) {
+    this.code   = 0;
+    this.parent = parent;
+    this.left   = null;
+    this.right  = null;
+    this.data   = null;
   }
 }
 
 
 function buildIterative (data, ids, codes, start, end) {
-  let root = new Node(0);
+  let root = new Node(null);
   let parent = null;
   const Q = [root];
   const stack = [start, end];
@@ -67,26 +69,58 @@ function buildIterative (data, ids, codes, start, end) {
     const first = stack.pop();
     const node  = Q.pop();
 
-    //const mid = (left + right) >> 1;
     if (last - first === 0) {
       node.code = codes[first];
       node.data = data[ids[first]];
     } else {
       const split = findSplit(codes, first, last);
-
       node.code = split;
-      node.data = null;
 
       if (first <= split) {
-        node.left = new Node();
-        node.left.parent = node;
+        node.left = new Node(split, node);
         Q.push(node.left);
         stack.push(first, split);
       }
 
       if (last > split) {
-        node.right = new Node();
-        node.right.parent = node;
+        node.right = new Node(node);
+        Q.push(node.right);
+        stack.push(split + 1, last);
+      }
+    }
+  }
+  return root;
+}
+
+
+function buildIterativeBuckets (data, ids, codes, start, end, bucketSize) {
+  let root = new Node(null);
+  let parent = null;
+  const Q = [root];
+  const stack = [start, end];
+
+  while (Q.length !== 0) {
+    const last  = stack.pop();
+    const first = stack.pop();
+    const node  = Q.pop();
+
+    if (last - first <= bucketSize) {
+      const bucket = new Array(last - first + 1);
+      for (let i = first, j = 0; i <= last; i++, j++) bucket[j] = data[ids[i]];
+      node.code = codes[first];
+      node.data = bucket;
+    } else {
+      const split = findSplit(codes, first, last);
+      node.code = split;
+
+      if (first <= split) {
+        node.left = new Node(split, node);
+        Q.push(node.left);
+        stack.push(first, split);
+      }
+
+      if (last > split) {
+        node.right = new Node(node);
         Q.push(node.right);
         stack.push(split + 1, last);
       }
@@ -206,9 +240,10 @@ export default class PHTree {
     if (bucketSize === 0) {
       /** @type {InternalNode?} */
       this._root = buildIterative(points, ids, codes, 0, n - 1);
+      //this._root = build(points, ids, codes, 0, n - 1);
     } else {
       /** @type {InternalNode?} */
-      this._root = buildBuckets(points, ids, codes, 0, n - 1, bucketSize);
+      this._root = buildIterativeBuckets(points, ids, codes, 0, n - 1, bucketSize);
     }
     /** @type {Number} */
     this._bucketSize = bucketSize;

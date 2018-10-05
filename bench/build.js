@@ -15,7 +15,7 @@ import seedrandom from 'seedrandom';
 
 const rnd = seedrandom('bench');
 
-const N = 20000;
+const N = 10000;
 const points = new Array(N).fill(0).map((_, i) => {
   if (i < N / 2) {
     return { x: rnd() * N / 100, y: rnd() * N / 100 };

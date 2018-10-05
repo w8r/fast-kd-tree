@@ -166,26 +166,6 @@
 	  return qsort(coords, codes, 0, coords.length - 1);
 	}
 
-	var InternalNode = function InternalNode (code, left, right) {
-	  this.code = code;
-	  this.left = left;
-	  this.right= right;
-	  left.parent = right.parent = this;
-
-	  // this.x0 = Math.min(left.x0, right.x0);
-	  // this.y0 = Math.min(left.y0, right.y0);
-	  // this.x1 = Math.max(left.x1, right.x1);
-	  // this.y1 = Math.max(left.y1, right.y1);
-	};
-
-	var BucketLeaf = function BucketLeaf (code, data) {
-	  this.code = code;
-	  this.data = data;
-	    
-	  // this.x0 = data.x1 = data[0];
-	  // this.y0 = data.y1 = data[1];
-	};
-
 	function inOrder (fn, ctx) {
 	  var current = this._root;
 	  var Q = [];
@@ -314,37 +294,18 @@
 	var HILBERT = 1;
 	var MORTON  = 0;
 
-	/**
-	 * @typedef {function(*):Number} CoordGetter
-	 */
 
-
-	function buildBuckets (data, ids, codes, first, last, bucketSize) {
-	  if (last - first <= bucketSize) {
-	    var bucket = new Array(last - first + 1);
-	    for (var i = first, j = 0; i <= last; i++, j++) { bucket[j] = data[ids[i]]; }
-	    return new BucketLeaf(codes[first], bucket);
-	  }
-	  var split = findSplit(codes, first, last);
-	  var left  = buildBuckets(data, ids, codes, first, split, bucketSize);
-	  var right = buildBuckets(data, ids, codes, split + 1, last, bucketSize);
-
-	  // const nd = [left, right];
-	  // nd.left = left; nd.right = right;
-	  // return nd;
-	  return new InternalNode(split, left, right);
-	}
-
-
-	var Node = function Node (code) {
-	  this.code = code;
-	  this.left = this.right = null;
+	var Node = function Node (parent) {
+	  this.code = 0;
+	  this.parent = parent;
+	  this.left = null;
+	  this.right= null;
 	  this.data = null;
 	};
 
 
 	function buildIterative (data, ids, codes, start, end) {
-	  var root = new Node(0);
+	  var root = new Node(null);
 	  var Q = [root];
 	  var stack = [start, end];
 
@@ -353,26 +314,57 @@
 	    var first = stack.pop();
 	    var node  = Q.pop();
 
-	    //const mid = (left + right) >> 1;
 	    if (last - first === 0) {
 	      node.code = codes[first];
 	      node.data = data[ids[first]];
 	    } else {
 	      var split = findSplit(codes, first, last);
-
 	      node.code = split;
-	      node.data = null;
 
 	      if (first <= split) {
-	        node.left = new Node();
-	        node.left.parent = node;
+	        node.left = new Node(split, node);
 	        Q.push(node.left);
 	        stack.push(first, split);
 	      }
 
 	      if (last > split) {
-	        node.right = new Node();
-	        node.right.parent = node;
+	        node.right = new Node(node);
+	        Q.push(node.right);
+	        stack.push(split + 1, last);
+	      }
+	    }
+	  }
+	  return root;
+	}
+
+
+	function buildIterativeBuckets (data, ids, codes, start, end, bucketSize) {
+	  var root = new Node(null);
+	  var Q = [root];
+	  var stack = [start, end];
+
+	  while (Q.length !== 0) {
+	    var last  = stack.pop();
+	    var first = stack.pop();
+	    var node  = Q.pop();
+
+	    if (last - first <= bucketSize) {
+	      var bucket = new Array(last - first + 1);
+	      for (var i = first, j = 0; i <= last; i++, j++) { bucket[j] = data[ids[i]]; }
+	      node.code = codes[first];
+	      node.data = bucket;
+	    } else {
+	      var split = findSplit(codes, first, last);
+	      node.code = split;
+
+	      if (first <= split) {
+	        node.left = new Node(split, node);
+	        Q.push(node.left);
+	        stack.push(first, split);
+	      }
+
+	      if (last > split) {
+	        node.right = new Node(node);
 	        Q.push(node.right);
 	        stack.push(split + 1, last);
 	      }
@@ -487,9 +479,10 @@
 	  if (bucketSize === 0) {
 	    /** @type {InternalNode?} */
 	    this._root = buildIterative(points, ids, codes, 0, n - 1);
+	    //this._root = build(points, ids, codes, 0, n - 1);
 	  } else {
 	    /** @type {InternalNode?} */
-	    this._root = buildBuckets(points, ids, codes, 0, n - 1, bucketSize);
+	    this._root = buildIterativeBuckets(points, ids, codes, 0, n - 1, bucketSize);
 	  }
 	  /** @type {Number} */
 	  this._bucketSize = bucketSize;
