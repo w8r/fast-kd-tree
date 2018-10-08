@@ -1,9 +1,9 @@
-import morton     from 'morton';
-import hilbert    from './hilbert.js';
-import sort       from './sort.js';
+import morton  from 'morton';
+import hilbert from './hilbert';
+import sort    from './sort';
 
-import InternalNode from './internal_node.js';
-import { Leaf, BucketLeaf } from './leaf.js';
+import InternalNode from './internal_node';
+import { Leaf, BucketLeaf } from './leaf';
 import {
   map, preOrder, postOrder, inOrder,
   height, size, toString
@@ -27,9 +27,6 @@ function buildBuckets (data, ids, codes, first, last, bucketSize) {
   const left  = buildBuckets(data, ids, codes, first, split, bucketSize);
   const right = buildBuckets(data, ids, codes, split + 1, last, bucketSize);
 
-  // const nd = [left, right];
-  // nd.left = left; nd.right = right;
-  // return nd;
   return new InternalNode(split, left, right);
 }
 
@@ -40,9 +37,6 @@ function build (data, ids, codes, first, last) {
   //const split = first + ((last - first) >> 1);
   const left  = build(data, ids, codes, first, split);
   const right = build(data, ids, codes, split + 1, last);
-  // const nd = [left, right];
-  // nd.left = left; nd.right = right;
-  // return nd;
   return new InternalNode(split, left, right);
 }
 
@@ -59,9 +53,9 @@ class Node {
 
 
 function buildIterative (data, ids, codes, start, end) {
-  let root = new Node(null);
-  let parent = null;
-  const Q = [root];
+  let root    = new Node(null);
+  let parent  = null;
+  const Q     = [root];
   const stack = [start, end];
 
   while (Q.length !== 0) {
@@ -244,6 +238,7 @@ export default class PHTree {
     } else {
       /** @type {InternalNode?} */
       this._root = buildIterativeBuckets(points, ids, codes, 0, n - 1, bucketSize);
+      //this._root = buildBuckets(points, ids, codes, 0, n - 1, bucketSize);
     }
     /** @type {Number} */
     this._bucketSize = bucketSize;

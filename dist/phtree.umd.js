@@ -305,8 +305,8 @@
 
 
 	function buildIterative (data, ids, codes, start, end) {
-	  var root = new Node(null);
-	  var Q = [root];
+	  var root    = new Node(null);
+	  var Q     = [root];
 	  var stack = [start, end];
 
 	  while (Q.length !== 0) {
@@ -483,6 +483,7 @@
 	  } else {
 	    /** @type {InternalNode?} */
 	    this._root = buildIterativeBuckets(points, ids, codes, 0, n - 1, bucketSize);
+	    //this._root = buildBuckets(points, ids, codes, 0, n - 1, bucketSize);
 	  }
 	  /** @type {Number} */
 	  this._bucketSize = bucketSize;
