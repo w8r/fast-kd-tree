@@ -319,6 +319,7 @@
 	      node.data = data[ids[first]];
 	    } else {
 	      var split = findSplit(codes, first, last);
+	      //const split = (first + last) >> 1;
 	      node.code = split;
 
 	      if (first <= split) {
@@ -389,7 +390,7 @@
 	  var f = codes[first];
 	  var l = codes[last];
 
-	  if (f === l) { return (first + last) >> 1; }
+	  if (f === l) { return first; }
 
 	  // Calculate the number of highest bits that are the same
 	  // for all objects, using the count-leading-zeros intrinsic.

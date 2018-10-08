@@ -68,6 +68,7 @@ function buildIterative (data, ids, codes, start, end) {
       node.data = data[ids[first]];
     } else {
       const split = findSplit(codes, first, last);
+      //const split = (first + last) >> 1;
       node.code = split;
 
       if (first <= split) {
@@ -139,7 +140,7 @@ function findSplit (codes, first, last) {
   const f = codes[first];
   const l = codes[last];
 
-  if (f === l) return (first + last) >> 1;
+  if (f === l) return first;
 
   // Calculate the number of highest bits that are the same
   // for all objects, using the count-leading-zeros intrinsic.
