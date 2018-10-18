@@ -1238,7 +1238,7 @@
 
 	var Node = function Node (parent) {
 	  this.code = 0;
-	  this.parent = parent;
+	  //this.parent = parent;
 	  this.left = null;
 	  this.right= null;
 	  this.data = null;
@@ -1290,7 +1290,7 @@
 	    var first = stack.pop();
 	    var node  = Q.pop();
 
-	    if (last - first <= bucketSize) {
+	    if (last - first < bucketSize) {
 	      var bucket = new Array(last - first + 1);
 	      for (var i = first, j = 0; i <= last; i++, j++) { bucket[j] = data[ids[i]]; }
 	      node.code = codes[first];
@@ -1316,6 +1316,7 @@
 	}
 
 
+	// count leading zeroes
 	function __clz(m) {
 	  var c = 1 << 31;
 	  for (var i = 0; i < 31; i += 1) {
@@ -2326,6 +2327,97 @@
 	UBTree.prototype.size      = size;
 	UBTree.prototype.toString  = toString;
 
+	function circleContainsCircle(cx, cy, cr, x, y, r) {
+	  var dx = cx - x;
+	  var dy = cy - y;
+	  var dr = cr - r;
+	  // reduce precision not to deal with square roots
+	  return (dx * dx + dy * dy) < (dr * dr + 1e-6);
+	}
+
+	function from2discs(ax, ay, bx, by, ar, br) {
+	  var dx = bx - ax;
+	  var dy = by - ay;
+	  var dr = br - ar;
+	  var l = Math.sqrt(dx * dx + dy * dy);
+
+	  return [
+	    (ax + bx + dx / l * dr) / 2,
+	    (ay + by + dy / l * dr) / 2,
+	    (l + ar + br) / 2
+	  ];
+	}
+
+
+	function from3discs(ax, ay, bx, by, cx, cy, ar, br, cr) {
+	  var a2 = 2 * (ax - bx),
+	    b2 = 2 * (ay - by),
+	    c2 = 2 * (br - ar);
+	  var d2 = ax * ax + ay * ay - ar * ar - bx * bx - by * by + br * br;
+	  var a3 = 2 * (ax - cx),
+	    b3 = 2 * (ay - cy),
+	    c3 = 2 * (cr - ar);
+	  var d3 = ax * ax + ay * ay - ar * ar - cx * cx - cy * cy + cr * cr;
+	  var ab = a3 * b2 - a2 * b3,
+	    xa = (b2 * d3 - b3 * d2) / ab - ax,
+	    xb = (b3 * c2 - b2 * c3) / ab,
+	    ya = (a3 * d2 - a2 * d3) / ab - ay,
+	    yb = (a2 * c3 - a3 * c2) / ab;
+
+	  var A = xb * xb + yb * yb - 1,
+	    B = 2 * (xa * xb + ya * yb + ar),
+	    C = xa * xa + ya * ya - ar * ar,
+	    r = (-B - Math.sqrt(B * B - 4 * A * C)) / (2 * A);
+	  return [
+	    xa + xb * r + ax,
+	    ya + yb * r + ay,
+	    r
+	  ];
+	}
+
+
+	function combine(P, S, X, Y, R, from2, from3) {
+	  var circle = null;
+	  var len = S.length;
+	  var u, v, w;
+
+	  if (len === 1) { // 1 point
+	    u = S[0];
+	    circle = [X(u), Y(u), R(u) || 0];
+	  } else if (len === 2) { // 2 points
+	    u = S[0];
+	    v = S[1];
+	    circle = from2discs(X(u), Y(u), X(v), Y(v), R(u), R(v));
+	  } else if (len === 3) { // 3 points
+	    u = S[0];
+	    v = S[1];
+	    w = S[2];
+	    circle = from3discs(X(u), Y(u), X(v), Y(v), X(w), Y(w), R(u), R(v), R(w));
+	  }
+
+	  return circle;
+	}
+
+
+	function minDisc (points, bounds, n, X, Y, R) {
+	  if ( n === void 0 ) n = points.length;
+
+	  var circle = null;
+	  if (n === 0 || bounds.length === 3) {
+	    circle = combine(points, bounds, X, Y, R);
+	  } else {
+	    var u = points[n - 1];
+	    circle = minDisc(points, bounds, n - 1, X, Y, R);
+	    if (circle === null || !circleContainsCircle(circle[0], circle[1], circle[2], X(u), Y(u), R(u))) {
+	      bounds.push(u);
+	      circle = minDisc(points, bounds, n - 1, X, Y, R);
+	      bounds.pop();
+	    }
+	  }
+
+	  return circle;
+	}
+
 	Math.seedrandom('query');
 
 	var svg = d3.select("svg");
@@ -2336,7 +2428,7 @@
 
 	var random = Math.random, n = 1000;
 
-	var data = d3.range(n).map(function() {
+	var data = window.data = d3.range(n).map(function() {
 	  return [random() * width, random() * height$1];
 	});
 	// var data = new Array(n).fill(0).map((_, i) => {
@@ -2357,7 +2449,7 @@
 	//   return pt;
 	// });
 
-	var nodeSize = 0; //Math.sqrt(n) | 0;
+	var nodeSize = /bucket/.test(window.location.hash) ? (Math.log(n) | 0) : 0;
 	console.time('build');
 	var tree = new PHTree(data, function (p) { return p[0]; }, function (p) { return p[1]; }, nodeSize, PHTree.SFC.HILBERT);
 	console.timeEnd('build');
@@ -2375,6 +2467,7 @@
 	console.timeEnd('ubtree');
 	window.u = u;
 	window.tree = tree;
+	window.phtree = PHTree;
 
 	svg
 	  .append('path')
@@ -2395,7 +2488,7 @@
 	    .attr("class", "point")
 	    .attr("cx", function (d) { return d[0]; })
 	    .attr("cy", function (d) { return d[1]; })
-	    .attr("r", 1);
+	    .attr("r", 2);
 
 	svg.append("g")
 	    .attr("class", "brush")
@@ -2408,11 +2501,13 @@
 	  search(tree, extent[0][0], extent[0][1], extent[1][0], extent[1][1]);
 	  point.classed("point--scanned", function(d) { return d.scanned; });
 	  point.classed("point--selected", function(d) { return d.selected; });
+	  point.classed("point--focus", function(d) { return d.focus; });
 	}
 
 	function show () {
 	  point.classed("point--selected", function(d) { return d.selected; });
 	  point.classed("point--scanned", function(d) { return d.scanned; });
+	  point.classed("point--focus", function(d) { return d.focus; });
 	}
 
 	// Find the nodes within the specified rectangle.
@@ -2440,8 +2535,11 @@
 	  //   node.x1 = x1, node.y1 = y1;
 	  //   nodes.push(node);
 	  // });
+	  var collect = tree._bucketSize === 0
+	    ? function (n) { if (!n.data) { nodes.push(n); } }
+	    : function (n) { nodes.push(n); };
 	  tree.postOrder(getTightBoxes);
-	  tree.preOrder(function (n) { if (!n.data) { nodes.push(n); } });
+	  tree.preOrder(collect);
 	  return nodes;
 	}
 
@@ -2509,8 +2607,7 @@
 	  var cx, cy, r, m, child;
 	  if (node.data) {
 	    if (tree._bucketSize) {
-	      var circle = PHTree.minDisc(
-	        node.data, [], node.data.length, tree._x, tree._y, function () { return 1; });
+	      var circle = minDisc(node.data, [], node.data.length, tree._x, tree._y, function () { return 1; });
 	      cx = circle[0]; cy = circle[1]; r = circle[2];
 	      m = node.data.length; // mass
 	    } else {
@@ -2553,7 +2650,7 @@
 
 	tree.preOrder(function (n) { return (n.fx = n.fy = 0); });
 
-	var theta = 0.37;
+	var theta = 0.6;
 	console.time('collect leafs');
 	var bodies = new Array(data.length);
 	var datas  = new Array(data.length);
@@ -2570,7 +2667,7 @@
 	  } else {
 	    tree.preOrder(function (n) {
 	      if (n.data) {
-	        for (var i = 0; i < node.data.length; i++) {
+	        for (var i = 0; i < n.data.length; i++) {
 	          bodies[pos] = n;
 	          datas[pos]  = n.data;
 	          pos++;
@@ -2640,17 +2737,39 @@
 	  var cur = bodies[n >> 1];
 	  var pt = datas[n >> 1];
 	  pt.selected = true;
+	  pt.focus    = true;
+	  cur.focus   = true;
+
+
+	  if (tree._bucketSize !== 0) {
+	    pt.forEach(function (p) { return p.focus = true; });
+	  }
+
 	  tree.preOrder(function (node) {
 	    if (node !== cur) {
 	      if (node.data) {
-	        node.data.selected = true;
+	        if (tree._bucketSize === 0) {
+	          node.data.selected = true;
+	        } else {
+	          var dx = cur.cx - node.cx;
+	          var dy = cur.cy - node.cy;
+	          var dsq = dx * dx + dy * dy;
+	          var rmax = cur.r + node.r;
+	          if (dsq >= (rmax / theta) * (rmax / theta)) {
+	            node.scanned = true;
+	          } else {
+	            for (var i = 0; i < node.data.length; i++) {
+	              node.data[i].selected = true;
+	            }
+	          }
+	        }
 	      } else {
-	        var dx = cur.cx - node.cx;
-	        var dy = cur.cy - node.cy;
-	        var dsq = dx * dx + dy * dy;
-	        var rmax = cur.r + node.r;
+	        var dx$1 = cur.cx - node.cx;
+	        var dy$1 = cur.cy - node.cy;
+	        var dsq$1 = dx$1 * dx$1 + dy$1 * dy$1;
+	        var rmax$1 = cur.r + node.r / theta;
 
-	        if (dsq >= (rmax / theta) * (rmax / theta)) {
+	        if (dsq$1 >= (rmax$1 / theta) * (rmax$1 / theta)) {
 	          node.scanned = true;
 	          return true;
 	        }
@@ -2659,9 +2778,6 @@
 	  });
 	  show();
 	}) ();
-
-
-
 
 
 	quadtree.visitAfter(function (quad) {
@@ -2730,14 +2846,25 @@
 	    .attr("height", function (d) { return d.y1 - d.y0; });
 
 
-
 	var med = svg.selectAll(".med")
-	  .data(tree.map(function (n) { return [n.cx, n.cy, n.r, n.scanned]; }))
+	  .data(tree.map(function (n) { return [n.cx, n.cy, n.r, n.scanned, n.focus]; }))
 	  .enter().append("circle")
-	    .attr("class", "med")
+	    .attr("class", function (d) { return d[4] ? 'med med--focus' : "med"; })
 	    .attr("cx", function (d) { return d[0]; })
 	    .attr("cy", function (d) { return d[1]; })
 	    .attr("r",  function (d) { return d[2]; });
+
+
+	tree.preOrder(function (n) {
+	  if (n.focus) {
+	    svg.append('circle')
+	      .attr('class', 'med--outer')
+	      .attr('cx', n.cx)
+	      .attr('cy', n.cy)
+	      .attr('r', (n.r || 4) / theta);
+	    return true;
+	  }
+	});
 
 
 	// svg.selectAll(".node")

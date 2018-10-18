@@ -297,7 +297,7 @@
 
 	var Node = function Node (parent) {
 	  this.code = 0;
-	  this.parent = parent;
+	  //this.parent = parent;
 	  this.left = null;
 	  this.right= null;
 	  this.data = null;
@@ -349,7 +349,7 @@
 	    var first = stack.pop();
 	    var node  = Q.pop();
 
-	    if (last - first <= bucketSize) {
+	    if (last - first < bucketSize) {
 	      var bucket = new Array(last - first + 1);
 	      for (var i = first, j = 0; i <= last; i++, j++) { bucket[j] = data[ids[i]]; }
 	      node.code = codes[first];
@@ -375,6 +375,7 @@
 	}
 
 
+	// count leading zeroes
 	function __clz(m) {
 	  var c = 1 << 31;
 	  for (var i = 0; i < 31; i += 1) {

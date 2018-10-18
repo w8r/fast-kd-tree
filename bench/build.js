@@ -15,7 +15,7 @@ import seedrandom from 'seedrandom';
 
 const rnd = seedrandom('bench');
 
-const N = 10000;
+const N = 100000;
 const points = new Array(N).fill(0).map((_, i) => {
   if (i < N / 2) {
     return { x: rnd() * N / 100, y: rnd() * N / 100 };
@@ -29,9 +29,11 @@ new Benchmark.Suite(` build from ${N} points`, options)
 .add('d3-quadtree', () => {
   const q = quadtree(points, p => p.x, p => p.y);
 }).add('PH', () => {
-  const b = new PH(points);
+  const b = new PH(points, p => p.x, p => p.y);
+}).add('PH-morton', () => {
+  const b = new PH(points, p => p.x, p => p.y, 0, PH.SFC.MORTON);
 }).add('PH reduced (bucket)', () => {
-  const b = new PH(points, p => p.x, p => p.y, Math.sqrt(N));
+  const b = new PH(points, p => p.x, p => p.y, Math.floor(Math.log(N)));
 }).add('mourner/kdbush', () => {
   const kd = kdbush(points, p => p.x, p => p.y, 1);
 }).add('simple kd', () => {

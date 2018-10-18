@@ -2,7 +2,7 @@ import seedrandom from 'seedrandom';
 import phtree from '../src/phtree';
 import sfctree from '../src/sfc-tree';
 import ubtree from '../src/ubtree';
-import minDisc from '../src/mindisc';
+import { minDisc } from '../src/mindisc';
 
 
 Math.seedrandom('query');
@@ -16,7 +16,7 @@ var selected;
 
 var random = Math.random, n = 1000;
 
-var data = d3.range(n).map(function() {
+var data = window.data = d3.range(n).map(function() {
   return [random() * width, random() * height];
 });
 // var data = new Array(n).fill(0).map((_, i) => {
@@ -37,7 +37,7 @@ var data = d3.range(n).map(function() {
 //   return pt;
 // });
 
-const nodeSize = 0; //Math.sqrt(n) | 0;
+const nodeSize = /bucket/.test(window.location.hash) ? (Math.log(n) | 0) : 0;
 console.time('build');
 var tree = new phtree(data, p => p[0], p => p[1], nodeSize, phtree.SFC.HILBERT);
 console.timeEnd('build');
@@ -55,6 +55,7 @@ var u = new ubtree(data, p => p[0], p => p[1]);
 console.timeEnd('ubtree');
 window.u = u;
 window.tree = tree;
+window.phtree = phtree;
 
 svg
   .append('path')
@@ -75,7 +76,7 @@ var point = svg.selectAll(".point")
     .attr("class", "point")
     .attr("cx", d => d[0])
     .attr("cy", d => d[1])
-    .attr("r", 1);
+    .attr("r", 2);
 
 svg.append("g")
     .attr("class", "brush")
@@ -88,6 +89,7 @@ function brushed() {
   search(tree, extent[0][0], extent[0][1], extent[1][0], extent[1][1]);
   point.classed("point--scanned", function(d) { return d.scanned; });
   point.classed("point--selected", function(d) { return d.selected; });
+  point.classed("point--focus", function(d) { return d.focus; });
 }
 
 function clear() {
@@ -98,6 +100,7 @@ function clear() {
 function show () {
   point.classed("point--selected", function(d) { return d.selected; });
   point.classed("point--scanned", function(d) { return d.scanned; });
+  point.classed("point--focus", function(d) { return d.focus; });
 }
 
 // Find the nodes within the specified rectangle.
@@ -125,8 +128,11 @@ function nodes(tree) {
   //   node.x1 = x1, node.y1 = y1;
   //   nodes.push(node);
   // });
+  const collect = tree._bucketSize === 0
+    ? n => { if (!n.data) nodes.push(n); }
+    : n => { nodes.push(n); };
   tree.postOrder(getTightBoxes);
-  tree.preOrder(n => { if (!n.data) nodes.push(n); });
+  tree.preOrder(collect);
   return nodes;
 }
 
@@ -226,8 +232,7 @@ tree.postOrder((node) => {
   let cx, cy, r, m, child;
   if (node.data) {
     if (tree._bucketSize) {
-      const circle = phtree.minDisc(
-        node.data, [], node.data.length, tree._x, tree._y, () => 1);
+      const circle = minDisc(node.data, [], node.data.length, tree._x, tree._y, () => 1);
       cx = circle[0]; cy = circle[1]; r = circle[2];
       m = node.data.length; // mass
     } else {
@@ -270,7 +275,7 @@ console.timeEnd('circles');
 
 tree.preOrder(n => (n.fx = n.fy = 0));
 
-const theta = 0.37;
+const theta = 0.6;
 const charge = 1;
 const friction = 0.1;
 console.time('collect leafs');
@@ -289,7 +294,7 @@ const datas  = new Array(data.length);
   } else {
     tree.preOrder(n => {
       if (n.data) {
-        for (let i = 0; i < node.data.length; i++) {
+        for (let i = 0; i < n.data.length; i++) {
           bodies[pos] = n;
           datas[pos]  = n.data;
           pos++;
@@ -465,15 +470,37 @@ function directCalc(data) {
   const cur = bodies[n >> 1];
   const pt = datas[n >> 1];
   pt.selected = true;
+  pt.focus    = true;
+  cur.focus   = true;
+
+
+  if (tree._bucketSize !== 0) {
+    pt.forEach(p => p.focus = true);
+  }
+
   tree.preOrder(node => {
     if (node !== cur) {
       if (node.data) {
-        node.data.selected = true;
+        if (tree._bucketSize === 0) {
+          node.data.selected = true;
+        } else {
+          const dx = cur.cx - node.cx;
+          const dy = cur.cy - node.cy;
+          const dsq = dx * dx + dy * dy;
+          const rmax = cur.r + node.r;
+          if (dsq >= (rmax / theta) * (rmax / theta)) {
+            node.scanned = true;
+          } else {
+            for (let i = 0; i < node.data.length; i++) {
+              node.data[i].selected = true;
+            }
+          }
+        }
       } else {
         const dx = cur.cx - node.cx;
         const dy = cur.cy - node.cy;
         const dsq = dx * dx + dy * dy;
-        const rmax = cur.r + node.r;
+        const rmax = cur.r + node.r / theta;
 
         if (dsq >= (rmax / theta) * (rmax / theta)) {
           node.scanned = true;
@@ -484,9 +511,6 @@ function directCalc(data) {
   });
   show();
 }) ();
-
-
-
 
 
 quadtree.visitAfter((quad) => {
@@ -599,14 +623,25 @@ svg.selectAll(".node")
     .attr("height", d => d.y1 - d.y0);
 
 
-
 const med = svg.selectAll(".med")
-  .data(tree.map((n) => [n.cx, n.cy, n.r, n.scanned]))
+  .data(tree.map((n) => [n.cx, n.cy, n.r, n.scanned, n.focus]))
   .enter().append("circle")
-    .attr("class", "med")
+    .attr("class", d => d[4] ? 'med med--focus' : "med")
     .attr("cx", d => d[0])
     .attr("cy", d => d[1])
     .attr("r",  d => d[2]);
+
+
+tree.preOrder(n => {
+  if (n.focus) {
+    svg.append('circle')
+      .attr('class', 'med--outer')
+      .attr('cx', n.cx)
+      .attr('cy', n.cy)
+      .attr('r', (n.r || 4) / theta);
+    return true;
+  }
+});
 
 
 // svg.selectAll(".node")
