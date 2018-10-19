@@ -166,6 +166,35 @@
 	  return qsort(coords, codes, 0, coords.length - 1);
 	}
 
+	var InternalNode = function InternalNode (code, left, right) {
+	  this.code = code;
+	  this.left = left;
+	  this.right= right;
+	  left.parent = right.parent = this;
+
+	  // this.x0 = Math.min(left.x0, right.x0);
+	  // this.y0 = Math.min(left.y0, right.y0);
+	  // this.x1 = Math.max(left.x1, right.x1);
+	  // this.y1 = Math.max(left.y1, right.y1);
+	};
+
+	var Leaf = function Leaf (code, data) {
+	  this.code = code;
+	  this.data = data;
+
+	  // this.x0 = this.x1 = data[0];
+	  // this.y0 = this.y1 = data[1];
+	};
+
+
+	var BucketLeaf = function BucketLeaf (code, data) {
+	  this.code = code;
+	  this.data = data;
+	    
+	  // this.x0 = data.x1 = data[0];
+	  // this.y0 = data.y1 = data[1];
+	};
+
 	function inOrder (fn, ctx) {
 	  var current = this._root;
 	  var Q = [];
@@ -293,6 +322,34 @@
 
 	var HILBERT = 1;
 	var MORTON  = 0;
+
+	/**
+	 * @typedef {function(*):Number} CoordGetter
+	 */
+
+
+	function buildBuckets (data, ids, codes, first, last, bucketSize) {
+	  if (last - first <= bucketSize) {
+	    var bucket = new Array(last - first + 1);
+	    for (var i = first, j = 0; i <= last; i++, j++) { bucket[j] = data[ids[i]]; }
+	    return new BucketLeaf(codes[first], bucket);
+	  }
+	  var split = findSplit(codes, first, last);
+	  var left  = buildBuckets(data, ids, codes, first, split, bucketSize);
+	  var right = buildBuckets(data, ids, codes, split + 1, last, bucketSize);
+
+	  return new InternalNode(split, left, right);
+	}
+
+
+	function build (data, ids, codes, first, last) {
+	  if (last - first === 0) { return new Leaf(codes[first], data[ids[first]]); }
+	  var split = findSplit(codes, first, last);
+	  //const split = first + ((last - first) >> 1);
+	  var left  = build(data, ids, codes, first, split);
+	  var right = build(data, ids, codes, split + 1, last);
+	  return new InternalNode(split, left, right);
+	}
 
 
 	var Node = function Node (parent) {
@@ -424,7 +481,7 @@
 	/**
 	 * @public
 	 */
-	var PHTree = function PHTree (points, getX, getY, bucketSize, sfc) {
+	var PHTree = function PHTree (points, getX, getY, bucketSize, sfc, recursive) {
 	  if ( getX === void 0 ) getX = defaultX;
 	  if ( getY === void 0 ) getY = defaultY;
 	  if ( bucketSize === void 0 ) bucketSize = 0;
@@ -479,13 +536,13 @@
 	  sort(ids, codes);
 
 	  if (bucketSize === 0) {
-	    /** @type {InternalNode?} */
-	    this._root = buildIterative(points, ids, codes, 0, n - 1);
-	    //this._root = build(points, ids, codes, 0, n - 1);
+	    this._root = recursive
+	      ? build(points, ids, codes, 0, n - 1)
+	      : buildIterative(points, ids, codes, 0, n - 1);
 	  } else {
-	    /** @type {InternalNode?} */
-	    this._root = buildIterativeBuckets(points, ids, codes, 0, n - 1, bucketSize);
-	    //this._root = buildBuckets(points, ids, codes, 0, n - 1, bucketSize);
+	    this._root = recursive
+	      ? buildBuckets(points, ids, codes, 0, n - 1, bucketSize)
+	      : buildIterativeBuckets(points, ids, codes, 0, n - 1, bucketSize);
 	  }
 	  /** @type {Number} */
 	  this._bucketSize = bucketSize;

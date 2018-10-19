@@ -184,7 +184,7 @@ export default class PHTree {
    * @param  {Number}   bucketSize
    * @param  {Number}   sfc
    */
-  constructor (points, getX = defaultX, getY = defaultY, bucketSize = 0, sfc = HILBERT) {
+  constructor (points, getX = defaultX, getY = defaultY, bucketSize = 0, sfc = HILBERT, recursive) {
     const n     = points.length;
     const codes = new Uint32Array(n);
     let minX = Infinity, minY = Infinity,
@@ -234,13 +234,13 @@ export default class PHTree {
     sort(ids, codes);
 
     if (bucketSize === 0) {
-      /** @type {InternalNode?} */
-      this._root = buildIterative(points, ids, codes, 0, n - 1);
-      //this._root = build(points, ids, codes, 0, n - 1);
+      this._root = recursive
+        ? build(points, ids, codes, 0, n - 1)
+        : buildIterative(points, ids, codes, 0, n - 1);
     } else {
-      /** @type {InternalNode?} */
-      this._root = buildIterativeBuckets(points, ids, codes, 0, n - 1, bucketSize);
-      //this._root = buildBuckets(points, ids, codes, 0, n - 1, bucketSize);
+      this._root = recursive
+        ? buildBuckets(points, ids, codes, 0, n - 1, bucketSize)
+        : buildIterativeBuckets(points, ids, codes, 0, n - 1, bucketSize);
     }
     /** @type {Number} */
     this._bucketSize = bucketSize;
