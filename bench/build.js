@@ -12,6 +12,8 @@ import kdt from '../src/kdt';
 import PH from '../dist/phtree.umd';
 import UB from '../src/ubtree';
 import seedrandom from 'seedrandom';
+import { binarytree } from 'd3-binarytree';
+import hilbert from '../src/hilbert';
 
 const rnd = seedrandom('bench');
 
@@ -22,6 +24,10 @@ const points = new Array(N).fill(0).map((_, i) => {
   } else {
     return { x: rnd() * N, y: rnd() * N };
   }
+});
+
+points.forEach(p => {
+  p.code = hilbert(p.x, p.y);
 });
 
 
@@ -42,6 +48,12 @@ new Benchmark.Suite(` build from ${N} points`, options)
   const k = new kdt(points);
 }).add('UB-tree', () => {
   const u = new UB(points);
+}).add('d3-binarytree', () => {
+  for (let i = 0; i < points.length; i++) {
+    const p = points[i];
+    p.code = hilbert(p.x, p.y);
+  }
+  const d = binarytree().x(p => p.code).addAll(points);
 }).add('dynamic kd-tree', () => {
   const dkd = new DynamicKDTree(points, d => d.x, d => d.y);
 }).add('double-sort', () => {
