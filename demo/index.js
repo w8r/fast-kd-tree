@@ -1,6 +1,6 @@
 import seedrandom from 'seedrandom';
 import phtree from '../src/phtree';
-import sfctree from '../src/sfc-tree';
+import sfctree from '../src/bvh/bvh';
 import ubtree from '../src/ubtree';
 import { minDisc } from '../src/mindisc';
 
@@ -38,6 +38,7 @@ var data = window.data = d3.range(n).map(function() {
 // });
 
 const nodeSize = /bucket/.test(window.location.hash) ? (Math.log(n) | 0) : 0;
+console.log(nodeSize);
 console.time('build');
 var tree = new phtree(data, p => p[0], p => p[1], nodeSize, phtree.SFC.HILBERT);
 console.timeEnd('build');
@@ -275,7 +276,7 @@ console.timeEnd('circles');
 
 tree.preOrder(n => (n.fx = n.fy = 0));
 
-const theta = 0.6;
+const theta = 0.62;
 const charge = 1;
 const friction = 0.1;
 console.time('collect leafs');

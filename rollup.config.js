@@ -17,7 +17,7 @@ const banner = `\
 `;
 
 module.exports = [{
-  input: './src/phtree.js',
+  input: './src/bvh/bvh.js',
   output: {
     file: `dist/${name}.umd.js`,
     name: name,

@@ -13,126 +13,142 @@
 	(global.phtree = factory());
 }(this, (function () { 'use strict';
 
+	var commonjsGlobal = typeof window !== 'undefined' ? window : typeof global !== 'undefined' ? global : typeof self !== 'undefined' ? self : {};
+
 	function createCommonjsModule(fn, module) {
 		return module = { exports: {} }, fn(module, module.exports), module.exports;
 	}
 
-	var morton_1 = createCommonjsModule(function (module) {
-	// Morton lookup tables.
-	// Based on http://graphics.stanford.edu/~seander/bithacks.html#InterleaveTableLookup
-	var X = [ 0, 1 ], Y = [ 0, 2 ];
-	for (var i = 4; i < 0xFFFF; i <<= 2) {
+	var morton = createCommonjsModule(function (module, exports) {
+	/* global define */
+	(function(global, factory) {
+	  module.exports = factory();
+	}(commonjsGlobal, function () {
+
+
+	  // Morton lookup tables.
+	  // Based on http://graphics.stanford.edu/~seander/bithacks.html#InterleaveTableLookup
+	  var X = [0, 1],
+	    Y = [0, 2];
+	  for (var i = 4; i < 0xffff; i <<= 2) {
 	    for (var j = 0, l = X.length; j < l; j++) {
-	        X.push((X[j] | i));
-	        Y.push((X[j] | i) << 1);
+	      X.push(X[j] | i);
+	      Y.push((X[j] | i) << 1);
 	    }
-	}
+	  }
 
-	// Only works for 24 bit input numbers (up to 16777215).
-	var morton = module.exports = function morton(x, y) {
-	    return (Y[y         & 0xFF] | X[x         & 0xFF]) +
-	           (Y[(y >> 8)  & 0xFF] | X[(x >> 8)  & 0xFF]) * 0x10000 +
-	           (Y[(y >> 16) & 0xFF] | X[(x >> 16) & 0xFF]) * 0x100000000;
-	};
-
-	var code = module.exports.code = function code(z, x, y) {
+	  // Only works for 24 bit input numbers (up to 16777215).
+	  function morton(x, y) {
+	    return (
+	      (Y[y & 0xff] | X[x & 0xff]) +
+	      (Y[(y >> 8) & 0xff] | X[(x >> 8) & 0xff]) * 0x10000 +
+	      (Y[(y >> 16) & 0xff] | X[(x >> 16) & 0xff]) * 0x100000000
+	    );
+	  }
+	  function code(z, x, y) {
 	    if (z > 24) { throw 'Morton codes are only supported up to Z=24'; }
 	    var Z = 1 << (24 - z);
 	    return morton(x * Z, y * Z);
-	};
+	  }
 
-	var range = module.exports.range = function range(z, x, y) {
+	  function range(z, x, y) {
 	    if (z > 24) { throw 'Morton ranges are only supported up to Z=24'; }
 	    var Z = 1 << (24 - z);
 	    var lower = morton(x * Z, y * Z);
-	    return [ lower, lower + Z * Z - 1 ];
-	};
+	    return [lower, lower + Z * Z - 1];
+	  }
 
-	var rX, rY;
-	var reverse = module.exports.reverse = function reverse(c) {
-	    if (c > 0xFFFFFFFFFFFF) { throw 'Only morton codes up to 48 bits are supported.'; }
+	  var rX, rY;
+	  function reverse(c) {
+	    if (c > 0xffffffffffff)
+	      { throw 'Only morton codes up to 48 bits are supported.'; }
 	    if (!rX) {
-	        // Create reverse lookup tables.
-	        rX = {}; rY = {};
-	        for (var i = 0; i < 256; i++) {
-	            rX[morton(i, 0)] = i;
-	            rY[morton(0, i)] = i;
-	        }
+	      // Create reverse lookup tables.
+	      rX = {};
+	      rY = {};
+	      for (var i = 0; i < 256; i++) {
+	        rX[morton(i, 0)] = i;
+	        rY[morton(0, i)] = i;
+	      }
 	    }
 
 	    var x = rX[c & 0x5555];
-	    var y = rY[c & 0xAAAA];
-	    if (c > 0xFFFF) {
+	    var y = rY[c & 0xaaaa];
+	    if (c > 0xffff) {
+	      c /= 0x10000;
+	      x |= rX[c & 0x5555] << 8;
+	      y |= rY[c & 0xaaaa] << 8;
+	      if (c > 0xffff) {
 	        c /= 0x10000;
-	        x |= rX[c & 0x5555] << 8;
-	        y |= rY[c & 0xAAAA] << 8;
-	        if (c > 0xFFFF) {
-	            c /= 0x10000;
-	            x |= rX[c & 0x5555] << 16;
-	            y |= rY[c & 0xAAAA] << 16;
-	        }
+	        x |= rX[c & 0x5555] << 16;
+	        y |= rY[c & 0xaaaa] << 16;
+	      }
 	    }
 
-	    return [ x, y ];
-	};
+	    return [x, y];
+	  }
 
-	var decode = module.exports.decode = function decode(z, c) {
+	  function decode(z, c) {
 	    var output = reverse(c);
 	    var Z = 1 << (24 - z);
-	    return [ output[0] / Z, output[1] / Z ];
-	};
+	    return [output[0] / Z, output[1] / Z];
+	  }
+
+	  morton.code = code;
+	  morton.decode = decode;
+	  morton.range = range;
+	  morton.reverse = reverse;
+
+	  return morton;
+	}));
 	});
-	var morton_2 = morton_1.code;
-	var morton_3 = morton_1.range;
-	var morton_4 = morton_1.reverse;
-	var morton_5 = morton_1.decode;
 
 	// Fast Hilbert curve algorithm by http://threadlocalmutex.com/
 	// Ported from C++ https://github.com/rawrunprotected/hilbert_curves (public domain)
 	function hilbert(x, y) {
-	  var a = x ^ y;
-	  var b = 0xFFFF ^ a;
-	  var c = 0xFFFF ^ (x | y);
-	  var d = x & (y ^ 0xFFFF);
+	    var a = x ^ y;
+	    var b = 0xFFFF ^ a;
+	    var c = 0xFFFF ^ (x | y);
+	    var d = x & (y ^ 0xFFFF);
 
-	  var A = a | (b >> 1);
-	  var B = (a >> 1) ^ a;
-	  var C = ((c >> 1) ^ (b & (d >> 1))) ^ c;
-	  var D = ((a & (c >> 1)) ^ (d >> 1)) ^ d;
+	    var A = a | (b >> 1);
+	    var B = (a >> 1) ^ a;
+	    var C = ((c >> 1) ^ (b & (d >> 1))) ^ c;
+	    var D = ((a & (c >> 1)) ^ (d >> 1)) ^ d;
 
-	  a = A; b = B; c = C; d = D;
-	  A = ((a & (a >> 2)) ^ (b & (b >> 2)));
-	  B = ((a & (b >> 2)) ^ (b & ((a ^ b) >> 2)));
-	  C ^= ((a & (c >> 2)) ^ (b & (d >> 2)));
-	  D ^= ((b & (c >> 2)) ^ ((a ^ b) & (d >> 2)));
+	    a = A; b = B; c = C; d = D;
+	    A = ((a & (a >> 2)) ^ (b & (b >> 2)));
+	    B = ((a & (b >> 2)) ^ (b & ((a ^ b) >> 2)));
+	    C ^= ((a & (c >> 2)) ^ (b & (d >> 2)));
+	    D ^= ((b & (c >> 2)) ^ ((a ^ b) & (d >> 2)));
 
-	  a = A; b = B; c = C; d = D;
-	  A = ((a & (a >> 4)) ^ (b & (b >> 4)));
-	  B = ((a & (b >> 4)) ^ (b & ((a ^ b) >> 4)));
-	  C ^= ((a & (c >> 4)) ^ (b & (d >> 4)));
-	  D ^= ((b & (c >> 4)) ^ ((a ^ b) & (d >> 4)));
+	    a = A; b = B; c = C; d = D;
+	    A = ((a & (a >> 4)) ^ (b & (b >> 4)));
+	    B = ((a & (b >> 4)) ^ (b & ((a ^ b) >> 4)));
+	    C ^= ((a & (c >> 4)) ^ (b & (d >> 4)));
+	    D ^= ((b & (c >> 4)) ^ ((a ^ b) & (d >> 4)));
 
-	  a = A; b = B; c = C; d = D;
-	  C ^= ((a & (c >> 8)) ^ (b & (d >> 8)));
-	  D ^= ((b & (c >> 8)) ^ ((a ^ b) & (d >> 8)));
+	    a = A; b = B; c = C; d = D;
+	    C ^= ((a & (c >> 8)) ^ (b & (d >> 8)));
+	    D ^= ((b & (c >> 8)) ^ ((a ^ b) & (d >> 8)));
 
-	  a = C ^ (C >> 1);
-	  b = D ^ (D >> 1);
+	    a = C ^ (C >> 1);
+	    b = D ^ (D >> 1);
 
-	  var i0 = x ^ y;
-	  var i1 = b | (0xFFFF ^ (i0 | a));
+	    var i0 = x ^ y;
+	    var i1 = b | (0xFFFF ^ (i0 | a));
 
-	  i0 = (i0 | (i0 << 8)) & 0x00FF00FF;
-	  i0 = (i0 | (i0 << 4)) & 0x0F0F0F0F;
-	  i0 = (i0 | (i0 << 2)) & 0x33333333;
-	  i0 = (i0 | (i0 << 1)) & 0x55555555;
+	    i0 = (i0 | (i0 << 8)) & 0x00FF00FF;
+	    i0 = (i0 | (i0 << 4)) & 0x0F0F0F0F;
+	    i0 = (i0 | (i0 << 2)) & 0x33333333;
+	    i0 = (i0 | (i0 << 1)) & 0x55555555;
 
-	  i1 = (i1 | (i1 << 8)) & 0x00FF00FF;
-	  i1 = (i1 | (i1 << 4)) & 0x0F0F0F0F;
-	  i1 = (i1 | (i1 << 2)) & 0x33333333;
-	  i1 = (i1 | (i1 << 1)) & 0x55555555;
+	    i1 = (i1 | (i1 << 8)) & 0x00FF00FF;
+	    i1 = (i1 | (i1 << 4)) & 0x0F0F0F0F;
+	    i1 = (i1 | (i1 << 2)) & 0x33333333;
+	    i1 = (i1 | (i1 << 1)) & 0x55555555;
 
-	  return ((i1 << 1) | i0) >>> 0;
+	    return ((i1 << 1) | i0) >>> 0;
 	}
 
 	function qsort (data, values, left, right) {
@@ -190,7 +206,7 @@
 	var BucketLeaf = function BucketLeaf (code, data) {
 	  this.code = code;
 	  this.data = data;
-	    
+
 	  // this.x0 = data.x1 = data[0];
 	  // this.y0 = data.y1 = data[1];
 	};
@@ -352,9 +368,8 @@
 	}
 
 
-	var Node = function Node (parent) {
-	  this.code = 0;
-	  //this.parent = parent;
+	var Node = function Node (code) {
+	  this.code = code;
 	  this.left = null;
 	  this.right= null;
 	  this.data = null;
@@ -470,7 +485,7 @@
 	      splitPrefix = __clz(f ^ splitCode);
 	      if (splitPrefix > commonPrefix) { split = newSplit; } // accept proposal
 	    }
-	  } while (step > 1)
+	  } while (step > 1);
 	  return split;
 	}
 
@@ -478,14 +493,17 @@
 	var defaultX = function (p) { return p.x; };
 	var defaultY = function (p) { return p.y; };
 
+
 	/**
 	 * @public
 	 */
-	var PHTree = function PHTree (points, getX, getY, bucketSize, sfc, recursive) {
-	  if ( getX === void 0 ) getX = defaultX;
-	  if ( getY === void 0 ) getY = defaultY;
-	  if ( bucketSize === void 0 ) bucketSize = 0;
-	  if ( sfc === void 0 ) sfc = HILBERT;
+	var BVH = function BVH (points, ref) {
+	  if ( ref === void 0 ) ref = {};
+	  var getX = ref.getX; if ( getX === void 0 ) getX = defaultX;
+	  var getY = ref.getY; if ( getY === void 0 ) getY = defaultY;
+	  var bucketSize = ref.bucketSize; if ( bucketSize === void 0 ) bucketSize = 0;
+	  var sfc = ref.sfc; if ( sfc === void 0 ) sfc = HILBERT;
+	  var recursive = ref.recursive; if ( recursive === void 0 ) recursive = true;
 
 	  var n   = points.length;
 	  var codes = new Uint32Array(n);
@@ -498,7 +516,7 @@
 	  /** @type {CoordGetter} */
 	  this._y = getY;
 
-	  var project = sfc === HILBERT ? hilbert : morton_1;
+	  var project = sfc === HILBERT ? hilbert : morton;
 	  this._project = project;
 
 	  var ids = new Uint32Array(n);
@@ -514,18 +532,19 @@
 	    ids[i] = i;
 	  }
 
-	  /** @type {Number} */
 	  this._minX = minX;
-	  /** @type {Number} */
 	  this._minY = minY;
-	  /** @type {Number} */
 	  this._maxX = maxX;
-	  /** @type {Number} */
 	  this._maxY = maxY;
 
 	  var max = (1 << 16) - 1;
-	  var w = max / (maxX - minX);
-	  var h = max / (maxY - minY);
+	  var dx = Math.max(maxX - minX, 1);
+	  var dy = Math.max(maxY - minY, 1);
+
+	  var w = max / dx;
+	  var h = max / dy;
+
+	  // division by zero safety
 	  this._hw = w;
 	  this._hh = h;
 
@@ -548,62 +567,26 @@
 	  this._bucketSize = bucketSize;
 	};
 
+	var prototypeAccessors = { root: { configurable: true } };
 
-	PHTree.prototype.walk = function walk (fn) {
-	  var stack = [this._minX, this._minY, this._maxX, this._maxY, 0];
-	  var Q = [this._root];
-	  while (Q.length !== 0) {
-	    var node = Q.pop();
-
-	    var dir= stack.pop();
-	    var ymax = stack.pop();
-	    var xmax = stack.pop();
-	    var ymin = stack.pop();
-	    var xmin = stack.pop();
-
-	    if (node) {
-	      if (fn(node, xmin, ymin, xmax, ymax)) { break; }
-	      var hw = (xmax - xmin) / 2,
-	            hh = (ymax - ymin) / 2;
-	      //const nextDir = dir > 0 ? (dir - 1) : 3;
-	      var nextDir = (dir + 1) % 2;
-
-	      Q.push(node.left, node.right);
-
-	      if (nextDir) { // by x
-	        stack.push(xmin, ymin, xmin + hw, ymax, nextDir);
-	        stack.push(xmin + hw, ymin, xmax, ymax, nextDir);
-	      } else {     // by y
-	        stack.push(xmin, ymin + hh, xmax, ymax, nextDir);
-	        stack.push(xmin, ymin, xmax, ymin + hh, nextDir);
-	      }
-	    }
-	  }
-	  return this;
+	prototypeAccessors.root.get = function () {
+	  return this._root;
 	};
 
-
-	PHTree.prototype.query = function query (x0, y0, x1, y1) {
-	  var res = [];
-	  this.walk(function (n, xmin, ymin, xmax, ymax) {
-	    if (n.data) { res.push(n.data); }
-	    return !(xmax > x0 && xmin < x1) && (ymax > y0 && ymin < y1);
-	  });
-	  return res;
-	};
+	Object.defineProperties( BVH.prototype, prototypeAccessors );
 
 
-	PHTree.prototype.inOrder   = inOrder;
-	PHTree.prototype.preOrder  = preOrder;
-	PHTree.prototype.postOrder = postOrder;
-	PHTree.prototype.map       = map;
-	PHTree.prototype.height    = height;
-	PHTree.prototype.size      = size;
-	PHTree.prototype.toString  = toString;
+	BVH.prototype.inOrder   = inOrder;
+	BVH.prototype.preOrder  = preOrder;
+	BVH.prototype.postOrder = postOrder;
+	BVH.prototype.map       = map;
+	BVH.prototype.height    = height;
+	BVH.prototype.size      = size;
+	BVH.prototype.toString  = toString;
 
-	PHTree.SFC = { HILBERT: HILBERT, MORTON: MORTON };
+	BVH.SFC = { HILBERT: HILBERT, MORTON: MORTON };
 
-	return PHTree;
+	return BVH;
 
 })));
 //# sourceMappingURL=phtree.umd.js.map

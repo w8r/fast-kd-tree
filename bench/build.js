@@ -2,7 +2,7 @@ import Benchmark from 'benchmark';
 import options from './options';
 import { quadtree } from 'd3';
 import kdbush from 'kdbush';
-import SFC from '../src/sfc-tree.js';
+import SFC from '../src/sfc-tree';
 import sort from '../src/sort';
 import sq from '../src/generic-quadtree';
 import LQ from '../src/linear-quadtree';
@@ -35,13 +35,13 @@ new Benchmark.Suite(` build from ${N} points`, options)
 .add('d3-quadtree', () => {
   const q = quadtree(points, p => p.x, p => p.y);
 }).add('PH', () => {
-  const b = new PH(points, p => p.x, p => p.y);
+  const b = new PH(points, { getX: p => p.x, getY: p => p.y });
 }).add('PH-morton', () => {
-  const b = new PH(points, p => p.x, p => p.y, 0, PH.SFC.MORTON);
+  const b = new PH(points, { getX: p => p.x, getY: p => p.y, sfc: PH.SFC.MORTON });
 }).add('PH reduced (bucket)', () => {
-  const b = new PH(points, p => p.x, p => p.y, Math.floor(Math.log(N)));
+  const b = new PH(points, { getX: p => p.x, getY: p => p.y, bucketSize: Math.floor(Math.log(N)) });
 }).add('mourner/kdbush', () => {
-  const kd = kdbush(points, p => p.x, p => p.y, 1);
+  const kd = kdbush(points, p => p.x, p => p.y, 16);
 }).add('simple kd', () => {
   const q = new skd(points);
 }).add('in-place kdtree', () => {
@@ -73,4 +73,6 @@ new Benchmark.Suite(` build from ${N} points`, options)
   const lq = new LQ(points);
 }).add('sfc tree', () => {
   const sfc = new SFC(points, p => p.x, p => p.y);
+}).add('PH iterative', () => {
+  const b = new PH(points, { getX: p => p.x, getY: p => p.y, recursive: false });
 }).run();
