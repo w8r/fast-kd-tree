@@ -120,3 +120,49 @@ function row (root, prefix, isTail, out, printNode) {
     if (root.right) row(root.right, indent, true,  out, printNode);
   }
 }
+
+
+function walk (fn) {
+  const stack = [this._minX, this._minY, this._maxX, this._maxY, 0];
+  const Q = [this._root];
+
+  let i = 0, j = 0;
+  while (Q.length !== 0) {
+    const node = Q.pop();
+
+    const dir  = stack.pop();
+    const ymax = stack.pop();
+    const xmax = stack.pop();
+    const ymin = stack.pop();
+    const xmin = stack.pop();
+
+    if (node) {
+      if (fn(node, xmin, ymin, xmax, ymax)) break;
+      const hw = (xmax - xmin) / 2,
+            hh = (ymax - ymin) / 2;
+      //const nextDir = dir > 0 ? (dir - 1) : 3;
+      const nextDir = (dir + 1) % 2;
+
+      Q.push(node.left, node.right)
+
+      if (nextDir) { // by x
+        stack.push(xmin, ymin, xmin + hw, ymax, nextDir);
+        stack.push(xmin + hw, ymin, xmax, ymax, nextDir);
+      } else {       // by y
+        stack.push(xmin, ymin + hh, xmax, ymax, nextDir);
+        stack.push(xmin, ymin, xmax, ymin + hh, nextDir);
+      }
+    }
+  }
+  return this;
+}
+
+
+function query (x0, y0, x1, y1) {
+  const res = [];
+  this.walk((n, xmin, ymin, xmax, ymax) => {
+    if (n.data) res.push(n.data);
+    return !(xmax > x0 && xmin < x1) && (ymax > y0 && ymin < y1);
+  });
+  return res;
+}

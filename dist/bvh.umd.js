@@ -1,5 +1,5 @@
 /**
- * phtree v1.0.0
+ * bvh v1.0.0
  * Fast static point hierarchy for particle simulations
  *
  * @author Alexander Milevski <info@w8r.name>
@@ -8,10 +8,10 @@
  */
 
 (function (global, factory) {
-	typeof exports === 'object' && typeof module !== 'undefined' ? module.exports = factory() :
-	typeof define === 'function' && define.amd ? define(factory) :
-	(global.phtree = factory());
-}(this, (function () { 'use strict';
+	typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports) :
+	typeof define === 'function' && define.amd ? define(['exports'], factory) :
+	(factory((global.bvh = {})));
+}(this, (function (exports) { 'use strict';
 
 	function createCommonjsModule(fn, module) {
 		return module = { exports: {} }, fn(module, module.exports), module.exports;
@@ -342,14 +342,16 @@
 	}
 
 
-	function build (data, ids, codes, first, last) {
+	function build (data, ids, codes, first, last, arr) {
 	  if (last - first === 0) { return new Leaf(codes[first], data[ids[first]]); }
 	  var split = findSplit(codes, first, last);
 	  //const split = first + ((last - first) >> 1);
-	  var left  = build(data, ids, codes, first, split);
-	  var right = build(data, ids, codes, split + 1, last);
+	  var left  = build(data, ids, codes, first, split, arr);
+	  var right = build(data, ids, codes, split + 1, last, arr);
 	  return new InternalNode(split, left, right);
 	}
+
+
 
 
 	var Node = function Node () {
@@ -480,7 +482,7 @@
 	/**
 	 * @public
 	 */
-	var PHTree = function PHTree (points, ref) {
+	var BVH = function BVH (points, ref) {
 	  if ( ref === void 0 ) ref = {};
 	  var getX = ref.getX; if ( getX === void 0 ) getX = defaultX;
 	  var getY = ref.getY; if ( getY === void 0 ) getY = defaultY;
@@ -550,7 +552,7 @@
 	};
 
 
-	PHTree.prototype.walk = function walk (fn) {
+	BVH.prototype.walk = function walk (fn) {
 	  var stack = [this._minX, this._minY, this._maxX, this._maxY, 0];
 	  var Q = [this._root];
 	  while (Q.length !== 0) {
@@ -584,7 +586,7 @@
 	};
 
 
-	PHTree.prototype.query = function query (x0, y0, x1, y1) {
+	BVH.prototype.query = function query (x0, y0, x1, y1) {
 	  var res = [];
 	  this.walk(function (n, xmin, ymin, xmax, ymax) {
 	    if (n.data) { res.push(n.data); }
@@ -594,17 +596,21 @@
 	};
 
 
-	PHTree.prototype.inOrder   = inOrder;
-	PHTree.prototype.preOrder  = preOrder;
-	PHTree.prototype.postOrder = postOrder;
-	PHTree.prototype.map       = map;
-	PHTree.prototype.height    = height;
-	PHTree.prototype.size      = size;
-	PHTree.prototype.toString  = toString;
+	BVH.prototype.inOrder   = inOrder;
+	BVH.prototype.preOrder  = preOrder;
+	BVH.prototype.postOrder = postOrder;
+	BVH.prototype.map       = map;
+	BVH.prototype.height    = height;
+	BVH.prototype.size      = size;
+	BVH.prototype.toString  = toString;
 
-	PHTree.SFC = { HILBERT: HILBERT, MORTON: MORTON };
+	BVH.SFC = { HILBERT: HILBERT, MORTON: MORTON };
 
-	return PHTree;
+	exports.__clz = __clz;
+	exports.findSplit = findSplit;
+	exports.default = BVH;
+
+	Object.defineProperty(exports, '__esModule', { value: true });
 
 })));
-//# sourceMappingURL=phtree.umd.js.map
+//# sourceMappingURL=bvh.umd.js.map

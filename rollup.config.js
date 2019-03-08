@@ -3,7 +3,7 @@ import commonjs from 'rollup-plugin-commonjs';
 import buble    from 'rollup-plugin-buble';
 import { version, author, license, description } from './package.json';
 
-const name = 'phtree';
+const name = 'bvh';
 
 const banner = `\
 /**
@@ -17,7 +17,7 @@ const banner = `\
 `;
 
 module.exports = [{
-  input: './src/phtree.js',
+  input: './src/bvh.js',
   output: {
     file: `dist/${name}.umd.js`,
     name: name,
@@ -38,6 +38,18 @@ module.exports = [{
     sourcemap: true,
     format: 'umd',
     banner
+  },
+  plugins: [
+    resolve({ browser: true }),  // so Rollup can find external libs
+    commonjs(), // so Rollup can convert commonJS to an ES module
+    buble()
+  ]
+}, {
+  input: 'bench/build.js',
+  output: {
+    file: 'dist/build-bench.js',
+    format: 'iife',
+    name: 'buildBench'
   },
   plugins: [
     resolve({ browser: true }),  // so Rollup can find external libs

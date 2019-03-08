@@ -1,6 +1,6 @@
 import Benchmark from 'benchmark';
 import options from './options';
-import { quadtree } from 'd3';
+import { quadtree } from 'd3-quadtree';
 import kdbush from 'kdbush';
 import SFC from '../src/sfc-tree.js';
 import sort from '../src/sort';
@@ -9,9 +9,11 @@ import LQ from '../src/linear-quadtree';
 import skd from '../src/kdtree';
 import DynamicKDTree from '../src/dynamic-kdtree';
 import kdt from '../src/kdt';
-import PH from '../dist/phtree.umd';
+import BVH from '../dist/phtree.umd';
+import AVH from '../src/array-tree';
 import UB from '../src/ubtree';
 import seedrandom from 'seedrandom';
+import qtreebh from 'ngraph.quadtreebh';
 
 const rnd = seedrandom('bench');
 
@@ -24,18 +26,31 @@ const points = new Array(N).fill(0).map((_, i) => {
   }
 });
 
+console.log(Benchmark.runInContext({}));
+
+const pointsbh = points.map(pos => {
+  return { pos, force: { x: 0, y: 0 } };
+});
+
 
 new Benchmark.Suite(` build from ${N} points`, options)
 .add('d3-quadtree', () => {
   const q = quadtree(points, p => p.x, p => p.y);
-}).add('PH', () => {
-  const b = new PH(points, p => p.x, p => p.y);
-}).add('PH-morton', () => {
-  const b = new PH(points, p => p.x, p => p.y, 0, PH.SFC.MORTON);
-}).add('PH reduced (bucket)', () => {
-  const b = new PH(points, p => p.x, p => p.y, Math.floor(Math.log(N)));
+}).add('AVH', () => {
+  const a = new AVH(points, { recursive: false });
+}).add('BVH', () => {
+  const b = new BVH(points, { recursive: false });
+}).add('BVH-recursive', () => {
+  const b = new BVH(points);
+}).add('BVH-morton', () => {
+  const b = new BVH(points, { sfc: BVH.SFC.MORTON });
+}).add('BVH reduced (bucket)', () => {
+  const b = new BVH(points, { bucketSize: Math.floor(Math.log(N)) });
 }).add('mourner/kdbush', () => {
   const kd = kdbush(points, p => p.x, p => p.y, 1);
+}).add('hgraph.quadtreebh', () => {
+  const q = qtreebh();
+  q.insertBodies(pointsbh);
 }).add('simple kd', () => {
   const q = new skd(points);
 }).add('in-place kdtree', () => {
@@ -60,5 +75,5 @@ new Benchmark.Suite(` build from ${N} points`, options)
 }).add('linear-quadtree', () => {
   const lq = new LQ(points);
 }).add('sfc tree', () => {
-  const sfc = new SFC(points, p => p.x, p => p.y);
+  const sfc = new SFC(points, { getX: p => p.x,  getY: p => p.y });
 }).run();

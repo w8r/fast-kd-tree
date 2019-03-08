@@ -1,5 +1,5 @@
 /**
- * phtree v1.0.0
+ * bvh v1.0.0
  * Fast static point hierarchy for particle simulations
  *
  * @author Alexander Milevski <info@w8r.name>
@@ -332,10 +332,10 @@
    * It's super-fast, but the zones are of irregular shapes (tetris-like).
    * It gets worse if you use morton curve.
    */
-  var SFCTree = function SFCTree (points, getX, getY, bucketSize) {
-    if ( getX === void 0 ) getX = defaultX;
-    if ( getY === void 0 ) getY = defaultY;
-    if ( bucketSize === void 0 ) bucketSize = 0;
+  var SFCTree = function SFCTree (points, ref) {
+    var getX = ref.getX; if ( getX === void 0 ) getX = defaultX;
+    var getY = ref.getY; if ( getY === void 0 ) getY = defaultY;
+    var bucketSize = ref.bucketSize; if ( bucketSize === void 0 ) bucketSize = 0;
 
     var n     = points.length;
     var hvalues = new Array(n);
@@ -368,6 +368,8 @@
 
     this._root = build(points, order, hvalues, 0, n - 1);
   };
+
+  SFCTree.prototype.query = function query () { return [] };
 
 
   SFCTree.prototype.inOrder   = inOrder;

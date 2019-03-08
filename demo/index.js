@@ -1,9 +1,8 @@
 import seedrandom from 'seedrandom';
-import phtree from '../src/phtree';
-import sfctree from '../src/sfc-tree';
+import bvh from '../src/bvh';
+import sfctree from '../src/array-tree';
 import ubtree from '../src/ubtree';
 import { minDisc } from '../src/mindisc';
-
 
 Math.seedrandom('query');
 
@@ -14,7 +13,7 @@ svg.attr("width", width);
 svg.attr("height", height);
 var selected;
 
-var random = Math.random, n = 1000;
+var random = Math.random, n = 100000;
 
 var data = window.data = d3.range(n).map(function() {
   return [random() * width, random() * height];
@@ -39,12 +38,12 @@ var data = window.data = d3.range(n).map(function() {
 
 const nodeSize = /bucket/.test(window.location.hash) ? (Math.log(n) | 0) : 0;
 console.time('build');
-var tree = new phtree(data, p => p[0], p => p[1], nodeSize, phtree.SFC.HILBERT);
+var tree = new bvh(data, { getX: p => p[0], getY: p => p[1], bucketSize: nodeSize });
 console.timeEnd('build');
 
-// console.time('build sfc');
-// var tree = new sfctree(data, p => p[0], p => p[1], nodeSize, 'hilbert');
-// console.timeEnd('build sfc');
+console.time('build sfc');
+window.stree = new sfctree(data, { getX: p => p[0], getY: p => p[1], bucketSize: nodeSize });
+console.timeEnd('build sfc');
 
 console.time('quadtree');
 var quadtree = new d3.quadtree(data, p => p[0], p => p[1]);
@@ -55,7 +54,7 @@ var u = new ubtree(data, p => p[0], p => p[1]);
 console.timeEnd('ubtree');
 window.u = u;
 window.tree = tree;
-window.phtree = phtree;
+window.bvh = bvh;
 
 svg
   .append('path')
@@ -232,9 +231,31 @@ tree.postOrder((node) => {
   let cx, cy, r, m, child;
   if (node.data) {
     if (tree._bucketSize) {
-      const circle = minDisc(node.data, [], node.data.length, tree._x, tree._y, () => 1);
-      cx = circle[0]; cy = circle[1]; r = circle[2];
+      //const circle = minDisc(node.data, [], node.data.length, tree._x, tree._y, () => 1);
+      let ccx = 0, ccy = 0, x, y, rr;
+      let minx = Infinity, miny = Infinity,
+          maxx = -Infinity, maxy = -Infinity;
+      for (let i = 0; i < node.data.length; i++) {
+        const id = node.data[i];
+        x = tree._x(id); y = tree._y(id); rr = 5;
+        ccx += 1 * x;
+        ccy += 1 * y;
+        if (x + rr > maxx) maxx = x + rr;
+        if (y + rr > maxy) maxy = y + rr;
+        if (x - rr < minx) minx = x - rr;
+        if (y - rr < miny) miny = y - rr;
+      }
+
       m = node.data.length; // mass
+      cx = ccx / m;
+      cy = ccy / m;
+      r = Math.max(
+        Math.abs(cx - minx), Math.abs(maxx - cx),
+        Math.abs(cy - miny), Math.abs(maxy - cy)
+      );
+
+      //cx = circle[0]; cy = circle[1]; r = circle[2];
+
     } else {
       cx = tree._x(node.data);
       cy = tree._y(node.data);
@@ -275,7 +296,7 @@ console.timeEnd('circles');
 
 tree.preOrder(n => (n.fx = n.fy = 0));
 
-const theta = 0.6;
+const theta = 0.62;
 const charge = 1;
 const friction = 0.1;
 console.time('collect leafs');

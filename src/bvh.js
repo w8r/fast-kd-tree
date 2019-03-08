@@ -31,18 +31,20 @@ function buildBuckets (data, ids, codes, first, last, bucketSize) {
 }
 
 
-function build (data, ids, codes, first, last) {
+function build (data, ids, codes, first, last, arr) {
   if (last - first === 0) return new Leaf(codes[first], data[ids[first]]);
   const split = findSplit(codes, first, last);
   //const split = first + ((last - first) >> 1);
-  const left  = build(data, ids, codes, first, split);
-  const right = build(data, ids, codes, split + 1, last);
+  const left  = build(data, ids, codes, first, split, arr);
+  const right = build(data, ids, codes, split + 1, last, arr);
   return new InternalNode(split, left, right);
 }
 
 
+
+
 class Node {
-  constructor (parent) {
+  constructor () {
     this.code   = 0;
     //this.parent = parent;
     this.left   = null;
@@ -53,15 +55,14 @@ class Node {
 
 
 function buildIterative (data, ids, codes, start, end) {
-  let root    = new Node(null);
+  let root    = new Node();
   let parent  = null;
-  const Q     = [root];
-  const stack = [start, end];
+  const stack = [root, start, end];
 
-  while (Q.length !== 0) {
+  while (stack.length !== 0) {
     const last  = stack.pop();
     const first = stack.pop();
-    const node  = Q.pop();
+    const node  = stack.pop();
 
     if (last - first === 0) {
       node.code = codes[first];
@@ -72,14 +73,14 @@ function buildIterative (data, ids, codes, start, end) {
       node.code = split;
 
       if (first <= split) {
-        node.left = new Node(split, node);
-        Q.push(node.left);
+        node.left = new Node();
+        stack.push(node.left);
         stack.push(first, split);
       }
 
       if (last > split) {
-        node.right = new Node(node);
-        Q.push(node.right);
+        node.right = new Node();
+        stack.push(node.right);
         stack.push(split + 1, last);
       }
     }
@@ -126,7 +127,7 @@ function buildIterativeBuckets (data, ids, codes, start, end, bucketSize) {
 
 
 // count leading zeroes
-function __clz(m) {
+export function __clz(m) {
   let c = 1 << 31;
   for (let i = 0; i < 31; i += 1) {
     if (c & m) return i;
@@ -137,7 +138,7 @@ function __clz(m) {
 
 
 // https://devblogs.nvidia.com/thinking-parallel-part-iii-tree-construction-gpu/
-function findSplit (codes, first, last) {
+export function findSplit (codes, first, last) {
   const f = codes[first];
   const l = codes[last];
 
@@ -174,7 +175,7 @@ const defaultY = p => p.y;
 /**
  * @public
  */
-export default class PHTree {
+export default class BVH {
 
   /**
    * @constructor
@@ -184,7 +185,10 @@ export default class PHTree {
    * @param  {Number}   bucketSize
    * @param  {Number}   sfc
    */
-  constructor (points, getX = defaultX, getY = defaultY, bucketSize = 0, sfc = HILBERT, recursive) {
+  constructor (points, {
+    getX = defaultX, getY = defaultY,
+    bucketSize = 0, sfc = HILBERT, recursive = true
+  } = {}) {
     const n     = points.length;
     const codes = new Uint32Array(n);
     let minX = Infinity, minY = Infinity,
@@ -294,12 +298,12 @@ export default class PHTree {
 }
 
 
-PHTree.prototype.inOrder   = inOrder;
-PHTree.prototype.preOrder  = preOrder;
-PHTree.prototype.postOrder = postOrder;
-PHTree.prototype.map       = map;
-PHTree.prototype.height    = height;
-PHTree.prototype.size      = size;
-PHTree.prototype.toString  = toString;
+BVH.prototype.inOrder   = inOrder;
+BVH.prototype.preOrder  = preOrder;
+BVH.prototype.postOrder = postOrder;
+BVH.prototype.map       = map;
+BVH.prototype.height    = height;
+BVH.prototype.size      = size;
+BVH.prototype.toString  = toString;
 
-PHTree.SFC = { HILBERT, MORTON };
+BVH.SFC = { HILBERT, MORTON };

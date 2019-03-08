@@ -32,7 +32,7 @@ function build (data, ids, codes, first, last) {
  */
 export default class SFCTree {
 
-  constructor (points, getX = defaultX, getY = defaultY, bucketSize = 0) {
+  constructor (points, { getX = defaultX, getY = defaultY, bucketSize = 0 }) {
     const n       = points.length;
     const hvalues = new Array(n);
     const order   = new Array(n);
@@ -64,6 +64,8 @@ export default class SFCTree {
 
     this._root = build(points, order, hvalues, 0, n - 1);
   }
+
+  query () { return [] }
 }
 
 
