@@ -62,6 +62,7 @@ module.exports = [{
     file: 'demo/bundle.js',
     format: 'iife',
     name: 'name',
+    sourcemap: true,
     globals: {
       d3: 'd3'
     }

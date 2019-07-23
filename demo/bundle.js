@@ -1496,6 +1496,7 @@
 	BVH.prototype.walk = function walk (fn) {
 	  var stack = [this._minX, this._minY, this._maxX, this._maxY, 0];
 	  var Q = [this._root];
+
 	  while (Q.length !== 0) {
 	    var node = Q.pop();
 
@@ -1550,60 +1551,16 @@
 	var defaultX$1 = function (d) { return d.x; };
 	var defaultY$1 = function (d) { return d.y; };
 
-	var NSIZE = 3;
-	function build$1 (data, ids, codes, first, last, storage, id) {
-	  if (last - first === 0) {
-	    //console.log(id, ids[first]);
-	    storage[id * NSIZE]     = id;
-	    storage[id * NSIZE + NSIZE - 1] = ids[first];
-	    return;
-	    //return new Leaf(codes[first], data[ids[first]]);
-	  }
-	  var split = findSplit(codes, first, last);
-	  //const split = (last + first) >> 1;
-	  var left  = build$1(data, ids, codes, first,     split, storage, id * 2 + 1);
-	  var right = build$1(data, ids, codes, split + 1, last,  storage, id * 2 + 2);
 
-	  storage[id * NSIZE] = id;
-	  // storage[id * 4 + 1] = id * 2 + 1;
-	  // storage[id * 4 + 2] = id * 2 + 2;
+	function build$1 (data, ids, codes, first, last) {
+	  if (last - first === 0) { return new Leaf(codes[first], data[ids[first]]); }
+	  var split = (last + first) >> 1;
+	  var left  = build$1(data, ids, codes, first, split);
+	  var right = build$1(data, ids, codes, split + 1, last);
 	  // const nd = [left, right];
 	  // nd.left = left; nd.right = right;
 	  // return nd;
-	  return;
-	  //return new InternalNode(split, left, right);
-	}
-
-	function build$1 (data, ids, codes, start, end, storage, id) {
-	  var stack = [id, start, end];
-
-	  while (stack.length !== 0) {
-	    var last  = stack.pop();
-	    var first = stack.pop();
-	    var node  = stack.pop();
-	    storage[node * NSIZE] = node;
-
-	    if (last - first === 0) {
-	      storage[node * NSIZE] = node;
-	      storage[node * NSIZE + NSIZE - 1] = ids[first];
-	      // node.code = codes[first];
-	      // node.data = data[ids[first]];
-	    } else {
-	      var split = findSplit(codes, first, last);
-	      //const split = (first + last) >> 1;
-	      //node.code = split;
-
-	      if (first <= split) {
-	        stack.push(node * 2 + 1);
-	        stack.push(first, split);
-	      }
-
-	      if (last > split) {
-	        stack.push(node * 2 + 2);
-	        stack.push(split + 1, last);
-	      }
-	    }
-	  }
+	  return new InternalNode(split, left, right);
 	}
 
 	/**
@@ -1612,7 +1569,7 @@
 	 * It's super-fast, but the zones are of irregular shapes (tetris-like).
 	 * It gets worse if you use morton curve.
 	 */
-	var ArrayTree = function ArrayTree (points, ref) {
+	var SFCTree = function SFCTree (points, ref) {
 	  var getX = ref.getX; if ( getX === void 0 ) getX = defaultX$1;
 	  var getY = ref.getY; if ( getY === void 0 ) getY = defaultY$1;
 	  var bucketSize = ref.bucketSize; if ( bucketSize === void 0 ) bucketSize = 0;
@@ -1620,10 +1577,6 @@
 	  var n     = points.length;
 	  var hvalues = new Array(n);
 	  var order = new Array(n);
-	  var storage = new Int32Array(Math.pow(2, Math.ceil(Math.log2(n) + 1)) * NSIZE);
-	  var indexes = new Int32Array();
-
-	  storage.fill(-1);
 
 	  var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
 
@@ -1636,7 +1589,6 @@
 	    if (x > maxX) { maxX = x; }
 	    if (y > maxY) { maxY = y; }
 	    order[i]= i;
-	    indexes[i] = i;
 	  }
 	  sort(order, hvalues);
 
@@ -1651,86 +1603,19 @@
 	  this._y = getY;
 	  this._bucketSize = bucketSize;
 
-	  this._root = build$1(points, order, hvalues, 0, n - 1, storage, 0);
-	  this._storage = storage;
+	  this._root = build$1(points, order, hvalues, 0, n - 1);
 	};
 
-	ArrayTree.prototype.query = function query () { return [] };
-
-	ArrayTree.prototype.inOrder = function inOrder$$1 (fn, ctx) {
-	  var current = 0;
-	  var Q = [];
-	  var done = false;
-
-	  while (!done) {
-	    if (current !== -1) {
-	      Q.push(current);
-	      current = current * 2 + 1;
-	    } else {
-	      if (Q.length !== 0) {
-	        current = Q.pop();
-	        if (fn.call(ctx, storage[current * NSIZE + NSIZE - 1])) { break; }
-	        current = current * 2 + 2;
-	      } else { done = true; }
-	    }
-	  }
-	  return this;
-	};
+	SFCTree.prototype.query = function query () { return [] };
 
 
-	ArrayTree.prototype.preOrder = function preOrder$$1 (fn, ctx) {
-	  var Q = [0];
-	  while (Q.length !== 0){
-	    var node = Q.pop();
-	    if (!fn.call(ctx, node)) {
-	      if (node.right) { Q.push(node.right); }
-	      if (node.left){ Q.push(node.left); }
-	    }
-	  }
-	  return this;
-	};
-
-
-	ArrayTree.prototype.postOrder = function postOrder$$1 (fn, ctx) {
-	  var Q = [];
-	  var node = this._root, last;
-	  do {
-	    while (node) {
-	      if (node.right) { Q.push(node.right); }
-	      Q.push(node);
-	      node = node.left;
-	    }
-	    node = Q.pop();
-	    last = Q.length - 1;
-	    if (node.right && Q[last] === node.right) {
-	      Q[last] = node;
-	      node = node.right;
-	    } else {
-	      fn.call(ctx, node);
-	      node = null;
-	    }
-	  } while (Q.length !== 0);
-
-	  return this;
-	};
-
-
-	ArrayTree.prototype.map = function map$$1 (fn, ctx) {
-	  var res = [];
-	  this.inOrder(function (node) {
-	    res.push(fn.call(ctx, node));
-	  });
-	  return res;
-	};
-
-
-	ArrayTree.prototype.inOrder   = inOrder;
-	// ArrayTree.prototype.preOrder  = preOrder;
-	// ArrayTree.prototype.postOrder = postOrder;
-	// ArrayTree.prototype.map       = map;
-	ArrayTree.prototype.height    = height;
-	ArrayTree.prototype.size      = size;
-	ArrayTree.prototype.toString  = toString;
+	SFCTree.prototype.inOrder   = inOrder;
+	SFCTree.prototype.preOrder  = preOrder;
+	SFCTree.prototype.postOrder = postOrder;
+	SFCTree.prototype.map       = map;
+	SFCTree.prototype.height    = height;
+	SFCTree.prototype.size      = size;
+	SFCTree.prototype.toString  = toString;
 
 	/* follows "An implementation of top-down splaying"
 	 * by D. Sleator <sleator@cs.cmu.edu> March 1992
@@ -2572,6 +2457,182 @@
 	UBTree.prototype.size      = size;
 	UBTree.prototype.toString  = toString;
 
+	var HILBERT$2 = 1;
+	var MORTON$2  = 0;
+
+
+	var defaultX$2 = function (p) { return p.x; };
+	var defaultY$2 = function (p) { return p.y; };
+
+	/**
+	 * @public
+	 */
+	var BVH$1 = function BVH (points, ref) {
+	  var this$1 = this;
+	  if ( ref === void 0 ) ref = {};
+	  var getX = ref.getX; if ( getX === void 0 ) getX = defaultX$2;
+	  var getY = ref.getY; if ( getY === void 0 ) getY = defaultY$2;
+	  var bucketSize = ref.bucketSize; if ( bucketSize === void 0 ) bucketSize = 0;
+	  var sfc = ref.sfc; if ( sfc === void 0 ) sfc = HILBERT$2;
+	  var recursive = ref.recursive; if ( recursive === void 0 ) recursive = true;
+
+	  var n   = points.length;
+	  var codes = new Uint32Array(n);
+	  var minX = Infinity, minY = Infinity,
+	      maxX = -Infinity, maxY = -Infinity;
+	  var p, i, x, y;
+
+	  /** @type {CoordGetter} */
+	  this._x = getX;
+	  /** @type {CoordGetter} */
+	  this._y = getY;
+
+	  var project = sfc === HILBERT$2 ? hilbert : morton_1;
+	  this._project = project;
+
+	  var ids = new Uint32Array(n);
+
+	  for (i = 0; i < n; i++) {
+	    p = points[i];
+	    x = getX(p);
+	    y = getY(p);
+	    if (x < minX) { minX = x; }
+	    if (y < minY) { minY = y; }
+	    if (x > maxX) { maxX = x; }
+	    if (y > maxY) { maxY = y; }
+	    ids[i] = i;
+	  }
+
+	  /** @type {Number} */
+	  this._minX = minX;
+	  /** @type {Number} */
+	  this._minY = minY;
+	  /** @type {Number} */
+	  this._maxX = maxX;
+	  /** @type {Number} */
+	  this._maxY = maxY;
+
+	  var max = (1 << 16) - 1;
+	  var w = max / (maxX - minX);
+	  var h = max / (maxY - minY);
+	  this._hw = w;
+	  this._hh = h;
+
+	  for (i = 0; i < n; i++) {
+	    p = points[i];
+	    codes[i] = project(w * (getX(p) - minX), h * (getY(p) - minY));
+	  }
+	  //sort(ids, codes);
+
+	  var LUT = new Set();
+	  var Q = new Array(n);
+	  // here the quadtree can be capped too
+	  for (i = 0; i < n; i++) {
+	    Q[i] = { code: codes[i], id: ids[i], leaf: true };
+	  }
+
+	  while (Q.length) {
+	    var node = Q.pop();
+	    var code = node.code;
+
+	    if (code === 0) {
+	      this$1._root = node;
+	      continue;
+	    }
+	    var pcode = code >>> 2;
+	    var quad = code & 3;
+
+	    var parent = LUT[pcode];
+	    if (!parent) {
+	      parent = LUT[pcode] = new Array(4);
+	      parent.code = pcode;
+	      Q.push(parent);
+	    }
+	    parent[quad] = node;
+	  }
+
+	  // if (bucketSize === 0) {
+	  // this._root = recursive
+	  //   ? build(points, ids, codes, 0, n - 1)
+	  //   : buildIterative(points, ids, codes, 0, n - 1);
+	  // } else {
+	  // this._root = recursive
+	  //   ? buildBuckets(points, ids, codes, 0, n - 1, bucketSize)
+	  //   : buildIterativeBuckets(points, ids, codes, 0, n - 1, bucketSize);
+	  // }
+	  /** @type {Number} */
+	  this._bucketSize = bucketSize;
+	};
+
+
+	BVH$1.prototype.walk = function walk (fn) {
+	  var stack = [this._minX, this._minY, this._maxX, this._maxY, 0];
+	  var Q = [this._root];
+	  while (Q.length !== 0) {
+	    var node = Q.pop();
+
+	    var dir= stack.pop();
+	    var ymax = stack.pop();
+	    var xmax = stack.pop();
+	    var ymin = stack.pop();
+	    var xmin = stack.pop();
+
+	    if (node) {
+	      if (fn(node, xmin, ymin, xmax, ymax)) { break; }
+	      var hw = (xmax - xmin) / 2,
+	            hh = (ymax - ymin) / 2;
+	      //const nextDir = dir > 0 ? (dir - 1) : 3;
+	      var nextDir = (dir + 1) % 2;
+
+	      Q.push(node.left, node.right);
+
+	      if (nextDir) { // by x
+	        stack.push(xmin, ymin, xmin + hw, ymax, nextDir);
+	        stack.push(xmin + hw, ymin, xmax, ymax, nextDir);
+	      } else {     // by y
+	        stack.push(xmin, ymin + hh, xmax, ymax, nextDir);
+	        stack.push(xmin, ymin, xmax, ymin + hh, nextDir);
+	      }
+	    }
+	  }
+	  return this;
+	};
+
+
+	BVH$1.prototype.leafs = function leafs () {
+	  var d = [];
+	  var Q = [this._root];
+	  while (Q.length !== 0) {
+	    var node = Q.pop();
+	    if (node) {
+	      if (node.leaf) { d.push(node); }
+	      else { Q.push.apply(Q, node); }
+	    }
+	  }
+	  return d;
+	};
+
+
+	BVH$1.prototype.query = function query (x0, y0, x1, y1) {
+	  var res = [];
+	  this.walk(function (n, xmin, ymin, xmax, ymax) {
+	    if (n.data) { res.push(n.data); }
+	    return !(xmax > x0 && xmin < x1) && (ymax > y0 && ymin < y1);
+	  });
+	  return res;
+	};
+
+
+	BVH$1.prototype.inOrder   = inOrder;
+	BVH$1.prototype.preOrder  = preOrder;
+	BVH$1.prototype.postOrder = postOrder;
+	BVH$1.prototype.map       = map;
+	BVH$1.prototype.height    = height;
+	BVH$1.prototype.size      = size;
+	BVH$1.prototype.toString  = toString;
+
+	BVH$1.SFC = { HILBERT: HILBERT$2, MORTON: MORTON$2 };
+
 	Math.seedrandom('query');
 
 	var svg = d3.select("svg");
@@ -2580,7 +2641,7 @@
 	svg.attr("width", width);
 	svg.attr("height", height$1);
 
-	var random = Math.random, n = 100000;
+	var random = Math.random, n = 2500;
 
 	var data = window.data = d3.range(n).map(function() {
 	  return [random() * width, random() * height$1];
@@ -2605,23 +2666,32 @@
 
 	var nodeSize = /bucket/.test(window.location.hash) ? (Math.log(n) | 0) : 0;
 	console.time('build');
-	var tree = new BVH(data, { getX: function (p) { return p[0]; }, getY: function (p) { return p[1]; }, bucketSize: nodeSize });
+	var tree = new BVH(data, { getX: function (p) { return p[0]; }, getY: function (p) { return p[1]; }, bucketSize: nodeSize, sfc: 0 });
 	console.timeEnd('build');
 
 	console.time('build sfc');
-	window.stree = new ArrayTree(data, { getX: function (p) { return p[0]; }, getY: function (p) { return p[1]; }, bucketSize: nodeSize });
+	window.stree = new SFCTree(data, { getX: function (p) { return p[0]; }, getY: function (p) { return p[1]; }, bucketSize: nodeSize });
+	//tree = window.stree;
 	console.timeEnd('build sfc');
+	//tree = window.stree;
 
 	console.time('quadtree');
 	var quadtree = new d3.quadtree(data, function (p) { return p[0]; }, function (p) { return p[1]; });
 	console.timeEnd('quadtree');
 
+	console.time('hilbert');
+	window.b = new BVH$1(data, { getX: function (p) { return p[0]; }, getY: function (p) { return p[1]; } });
+	console.timeEnd('hilbert');
+
 	console.time('ubtree');
 	var u = new UBTree(data, function (p) { return p[0]; }, function (p) { return p[1]; });
+	u.query = function () { return []; };
+	//tree = u;
 	console.timeEnd('ubtree');
 	window.u = u;
 	window.tree = tree;
 	window.bvh = BVH;
+	window.quadtree = quadtree;
 
 	svg
 	  .append('path')
@@ -2694,6 +2764,18 @@
 	    : function (n) { nodes.push(n); };
 	  tree.postOrder(getTightBoxes);
 	  tree.preOrder(collect);
+	  return nodes;
+	}
+
+	function nodesUB(tree) {
+	  var nodes = [];
+	  // tree.walk((node, x0, y0, x1, y1) => {
+	  //   node.x0 = x0, node.y0 = y0;
+	  //   node.x1 = x1, node.y1 = y1;
+	  //   nodes.push(node);
+	  // });
+	  tree.postOrder(getTightBoxesBST);
+	  tree.preOrder(function (n) { nodes.push(n); });
 	  return nodes;
 	}
 
@@ -2826,7 +2908,7 @@
 
 	tree.preOrder(function (n) { return (n.fx = n.fy = 0); });
 
-	var theta = 0.62;
+	var theta = 0.46;
 	console.time('collect leafs');
 	var bodies = new Array(data.length);
 	var datas  = new Array(data.length);
@@ -3025,7 +3107,7 @@
 	var med = svg.selectAll(".med")
 	  .data(tree.map(function (n) { return [n.cx, n.cy, n.r, n.scanned, n.focus]; }))
 	  .enter().append("circle")
-	    .attr("class", function (d) { return d[4] ? 'med med--focus' : "med"; })
+	    .attr("class", function (d) { return d[4] ? 'med med--focus' : d[3]? 'med med--scanned' : "med"; })
 	    .attr("cx", function (d) { return d[0]; })
 	    .attr("cy", function (d) { return d[1]; })
 	    .attr("r",  function (d) { return d[2]; });
@@ -3043,14 +3125,14 @@
 	});
 
 
-	// svg.selectAll(".node")
-	//   .data(nodesUB(u))
-	//   .enter().append("rect")
-	//     .attr("class", d => d.scanned ? 'node node--scanned' : 'node')
-	//     .attr("x", d  => d.x0)
-	//     .attr("y", d => d.y0)
-	//     .attr("width", d => d.x1 - d.x0)
-	//     .attr("height", d => d.y1 - d.y0);
+	svg.selectAll(".node")
+	  .data(nodesUB(u))
+	  .enter().append("rect")
+	    .attr("class", function (d) { return d.scanned ? 'node node--scanned' : 'node'; })
+	    .attr("x", function (d)  { return d.x0; })
+	    .attr("y", function (d) { return d.y0; })
+	    .attr("width", function (d) { return d.x1 - d.x0; })
+	    .attr("height", function (d) { return d.y1 - d.y0; });
 
 
 	// const med = svg.selectAll(".med")
@@ -3062,3 +3144,4 @@
 	//     .attr("r",  d => d[2]);
 
 }());
+//# sourceMappingURL=bundle.js.map

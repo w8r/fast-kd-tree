@@ -41,6 +41,8 @@ function build (data, ids, codes, first, last, arr) {
 }
 
 
+
+
 class Node {
   constructor () {
     this.code   = 0;
@@ -54,6 +56,7 @@ class Node {
 
 function buildIterative (data, ids, codes, start, end) {
   let root    = new Node();
+  let parent  = null;
   const stack = [root, start, end];
 
   while (stack.length !== 0) {
@@ -88,6 +91,7 @@ function buildIterative (data, ids, codes, start, end) {
 
 function buildIterativeBuckets (data, ids, codes, start, end, bucketSize) {
   let root = new Node(null);
+  let parent = null;
   const Q = [root];
   const stack = [start, end];
 
@@ -231,17 +235,44 @@ export default class BVH {
       p = points[i];
       codes[i] = project(w * (getX(p) - minX), h * (getY(p) - minY));
     }
-    sort(ids, codes);
+    //sort(ids, codes);
 
-    if (bucketSize === 0) {
-      this._root = recursive
-        ? build(points, ids, codes, 0, n - 1)
-        : buildIterative(points, ids, codes, 0, n - 1);
-    } else {
-      this._root = recursive
-        ? buildBuckets(points, ids, codes, 0, n - 1, bucketSize)
-        : buildIterativeBuckets(points, ids, codes, 0, n - 1, bucketSize);
+    const LUT = new Set();
+    const Q = new Array(n);
+    // here the quadtree can be capped too
+    for (i = 0; i < n; i++) {
+      Q[i] = { code: codes[i], id: ids[i], leaf: true };
     }
+
+    while (Q.length) {
+      const node = Q.pop();
+      const code = node.code;
+
+      if (code === 0) {
+        this._root = node;
+        continue;
+      }
+      const pcode = code >>> 2;
+      const quad = code & 3;
+
+      let parent = LUT[pcode];
+      if (!parent) {
+        parent = LUT[pcode] = new Array(4);
+        parent.code = pcode;
+        Q.push(parent);
+      }
+      parent[quad] = node;
+    }
+
+    // if (bucketSize === 0) {
+    //   this._root = recursive
+    //     ? build(points, ids, codes, 0, n - 1)
+    //     : buildIterative(points, ids, codes, 0, n - 1);
+    // } else {
+    //   this._root = recursive
+    //     ? buildBuckets(points, ids, codes, 0, n - 1, bucketSize)
+    //     : buildIterativeBuckets(points, ids, codes, 0, n - 1, bucketSize);
+    // }
     /** @type {Number} */
     this._bucketSize = bucketSize;
   }
@@ -251,6 +282,7 @@ export default class BVH {
     const stack = [this._minX, this._minY, this._maxX, this._maxY, 0];
     const Q = [this._root];
 
+    let i = 0, j = 0;
     while (Q.length !== 0) {
       const node = Q.pop();
 
@@ -279,6 +311,20 @@ export default class BVH {
       }
     }
     return this;
+  }
+
+
+  leafs () {
+    const d = [];
+    const Q = [this._root];
+    while (Q.length !== 0) {
+      const node = Q.pop();
+      if (node) {
+        if (node.leaf) d.push(node);
+        else Q.push.apply(Q, node);
+      }
+    }
+    return d;
   }
 
 

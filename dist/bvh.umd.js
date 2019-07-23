@@ -555,6 +555,7 @@
 	BVH.prototype.walk = function walk (fn) {
 	  var stack = [this._minX, this._minY, this._maxX, this._maxY, 0];
 	  var Q = [this._root];
+
 	  while (Q.length !== 0) {
 	    var node = Q.pop();
 

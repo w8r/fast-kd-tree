@@ -6,10 +6,12 @@ import SFC from '../src/sfc-tree.js';
 import sort from '../src/sort';
 import sq from '../src/generic-quadtree';
 import LQ from '../src/linear-quadtree';
+import hilbertquad from '../src/bottom-up';
 import skd from '../src/kdtree';
 import DynamicKDTree from '../src/dynamic-kdtree';
 import kdt from '../src/kdt';
 import BVH from '../dist/phtree.umd';
+import BVHTS from '../dist/bvh-ts';
 import AVH from '../src/array-tree';
 import UB from '../src/ubtree';
 import seedrandom from 'seedrandom';
@@ -17,7 +19,7 @@ import qtreebh from 'ngraph.quadtreebh';
 
 const rnd = seedrandom('bench');
 
-const N = 100000;
+const N = 10000;
 const points = new Array(N).fill(0).map((_, i) => {
   if (i < N / 2) {
     return { x: rnd() * N / 100, y: rnd() * N / 100 };
@@ -26,12 +28,12 @@ const points = new Array(N).fill(0).map((_, i) => {
   }
 });
 
-console.log(Benchmark.runInContext({}));
-
 const pointsbh = points.map(pos => {
   return { pos, force: { x: 0, y: 0 } };
 });
 
+const getX = d => d.x;
+const getY = d => d.y;
 
 new Benchmark.Suite(` build from ${N} points`, options)
 .add('d3-quadtree', () => {
@@ -46,8 +48,12 @@ new Benchmark.Suite(` build from ${N} points`, options)
   const b = new BVH(points, { sfc: BVH.SFC.MORTON });
 }).add('BVH reduced (bucket)', () => {
   const b = new BVH(points, { bucketSize: Math.floor(Math.log(N)) });
+}).add('BVH-ts reduced (bucket)', () => {
+  const b = new BVHTS(points, { getX, getY, bucketSize: Math.floor(Math.log(N)) });
 }).add('mourner/kdbush', () => {
   const kd = kdbush(points, p => p.x, p => p.y, 1);
+}).add('complete hilbert quadtree', () => {
+  const ct = new hilbertquad(points, { getX: p => p.x, getY: p => p.y });
 }).add('hgraph.quadtreebh', () => {
   const q = qtreebh();
   q.insertBodies(pointsbh);

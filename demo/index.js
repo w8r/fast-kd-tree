@@ -1,7 +1,8 @@
 import seedrandom from 'seedrandom';
 import bvh from '../src/bvh';
-import sfctree from '../src/array-tree';
+import sfctree from '../src/sfc-tree';
 import ubtree from '../src/ubtree';
+import bq from '../src/bottom-up';
 import { minDisc } from '../src/mindisc';
 
 Math.seedrandom('query');
@@ -13,7 +14,7 @@ svg.attr("width", width);
 svg.attr("height", height);
 var selected;
 
-var random = Math.random, n = 100000;
+var random = Math.random, n = 2500;
 
 var data = window.data = d3.range(n).map(function() {
   return [random() * width, random() * height];
@@ -38,23 +39,32 @@ var data = window.data = d3.range(n).map(function() {
 
 const nodeSize = /bucket/.test(window.location.hash) ? (Math.log(n) | 0) : 0;
 console.time('build');
-var tree = new bvh(data, { getX: p => p[0], getY: p => p[1], bucketSize: nodeSize });
+var tree = new bvh(data, { getX: p => p[0], getY: p => p[1], bucketSize: nodeSize, sfc: 0 });
 console.timeEnd('build');
 
 console.time('build sfc');
 window.stree = new sfctree(data, { getX: p => p[0], getY: p => p[1], bucketSize: nodeSize });
+//tree = window.stree;
 console.timeEnd('build sfc');
+//tree = window.stree;
 
 console.time('quadtree');
 var quadtree = new d3.quadtree(data, p => p[0], p => p[1]);
 console.timeEnd('quadtree');
 
+console.time('hilbert');
+window.b = new bq(data, { getX: p => p[0], getY: p => p[1] });
+console.timeEnd('hilbert');
+
 console.time('ubtree');
 var u = new ubtree(data, p => p[0], p => p[1]);
+u.query = () => [];
+//tree = u;
 console.timeEnd('ubtree');
 window.u = u;
 window.tree = tree;
 window.bvh = bvh;
+window.quadtree = quadtree;
 
 svg
   .append('path')
@@ -296,7 +306,7 @@ console.timeEnd('circles');
 
 tree.preOrder(n => (n.fx = n.fy = 0));
 
-const theta = 0.62;
+const theta = 0.46;
 const charge = 1;
 const friction = 0.1;
 console.time('collect leafs');
@@ -647,7 +657,7 @@ svg.selectAll(".node")
 const med = svg.selectAll(".med")
   .data(tree.map((n) => [n.cx, n.cy, n.r, n.scanned, n.focus]))
   .enter().append("circle")
-    .attr("class", d => d[4] ? 'med med--focus' : "med")
+    .attr("class", d => d[4] ? 'med med--focus' : d[3]? 'med med--scanned' : "med")
     .attr("cx", d => d[0])
     .attr("cy", d => d[1])
     .attr("r",  d => d[2]);
@@ -665,14 +675,14 @@ tree.preOrder(n => {
 });
 
 
-// svg.selectAll(".node")
-//   .data(nodesUB(u))
-//   .enter().append("rect")
-//     .attr("class", d => d.scanned ? 'node node--scanned' : 'node')
-//     .attr("x", d  => d.x0)
-//     .attr("y", d => d.y0)
-//     .attr("width", d => d.x1 - d.x0)
-//     .attr("height", d => d.y1 - d.y0);
+svg.selectAll(".node")
+  .data(nodesUB(u))
+  .enter().append("rect")
+    .attr("class", d => d.scanned ? 'node node--scanned' : 'node')
+    .attr("x", d  => d.x0)
+    .attr("y", d => d.y0)
+    .attr("width", d => d.x1 - d.x0)
+    .attr("height", d => d.y1 - d.y0);
 
 
 // const med = svg.selectAll(".med")

@@ -7,6 +7,10 @@
 		throw new Error('Dynamic requires are not currently supported by rollup-plugin-commonjs');
 	}
 
+	function unwrapExports (x) {
+		return x && x.__esModule && Object.prototype.hasOwnProperty.call(x, 'default') ? x['default'] : x;
+	}
+
 	function createCommonjsModule(fn, module) {
 		return module = { exports: {} }, fn(module, module.exports), module.exports;
 	}
@@ -4103,6 +4107,182 @@
 	  return Q;
 	}
 
+	var HILBERT = 1;
+	var MORTON  = 0;
+
+
+	var defaultX$2 = function (p) { return p.x; };
+	var defaultY$2 = function (p) { return p.y; };
+
+	/**
+	 * @public
+	 */
+	var BVH = function BVH (points, ref) {
+	  var this$1 = this;
+	  if ( ref === void 0 ) ref = {};
+	  var getX = ref.getX; if ( getX === void 0 ) getX = defaultX$2;
+	  var getY = ref.getY; if ( getY === void 0 ) getY = defaultY$2;
+	  var bucketSize = ref.bucketSize; if ( bucketSize === void 0 ) bucketSize = 0;
+	  var sfc = ref.sfc; if ( sfc === void 0 ) sfc = HILBERT;
+	  var recursive = ref.recursive; if ( recursive === void 0 ) recursive = true;
+
+	  var n   = points.length;
+	  var codes = new Uint32Array(n);
+	  var minX = Infinity, minY = Infinity,
+	      maxX = -Infinity, maxY = -Infinity;
+	  var p, i, x, y;
+
+	  /** @type {CoordGetter} */
+	  this._x = getX;
+	  /** @type {CoordGetter} */
+	  this._y = getY;
+
+	  var project = sfc === HILBERT ? hilbert : morton_1;
+	  this._project = project;
+
+	  var ids = new Uint32Array(n);
+
+	  for (i = 0; i < n; i++) {
+	    p = points[i];
+	    x = getX(p);
+	    y = getY(p);
+	    if (x < minX) { minX = x; }
+	    if (y < minY) { minY = y; }
+	    if (x > maxX) { maxX = x; }
+	    if (y > maxY) { maxY = y; }
+	    ids[i] = i;
+	  }
+
+	  /** @type {Number} */
+	  this._minX = minX;
+	  /** @type {Number} */
+	  this._minY = minY;
+	  /** @type {Number} */
+	  this._maxX = maxX;
+	  /** @type {Number} */
+	  this._maxY = maxY;
+
+	  var max = (1 << 16) - 1;
+	  var w = max / (maxX - minX);
+	  var h = max / (maxY - minY);
+	  this._hw = w;
+	  this._hh = h;
+
+	  for (i = 0; i < n; i++) {
+	    p = points[i];
+	    codes[i] = project(w * (getX(p) - minX), h * (getY(p) - minY));
+	  }
+	  //sort(ids, codes);
+
+	  var LUT = new Set();
+	  var Q = new Array(n);
+	  // here the quadtree can be capped too
+	  for (i = 0; i < n; i++) {
+	    Q[i] = { code: codes[i], id: ids[i], leaf: true };
+	  }
+
+	  while (Q.length) {
+	    var node = Q.pop();
+	    var code = node.code;
+
+	    if (code === 0) {
+	      this$1._root = node;
+	      continue;
+	    }
+	    var pcode = code >>> 2;
+	    var quad = code & 3;
+
+	    var parent = LUT[pcode];
+	    if (!parent) {
+	      parent = LUT[pcode] = new Array(4);
+	      parent.code = pcode;
+	      Q.push(parent);
+	    }
+	    parent[quad] = node;
+	  }
+
+	  // if (bucketSize === 0) {
+	  // this._root = recursive
+	  //   ? build(points, ids, codes, 0, n - 1)
+	  //   : buildIterative(points, ids, codes, 0, n - 1);
+	  // } else {
+	  // this._root = recursive
+	  //   ? buildBuckets(points, ids, codes, 0, n - 1, bucketSize)
+	  //   : buildIterativeBuckets(points, ids, codes, 0, n - 1, bucketSize);
+	  // }
+	  /** @type {Number} */
+	  this._bucketSize = bucketSize;
+	};
+
+
+	BVH.prototype.walk = function walk (fn) {
+	  var stack = [this._minX, this._minY, this._maxX, this._maxY, 0];
+	  var Q = [this._root];
+	  while (Q.length !== 0) {
+	    var node = Q.pop();
+
+	    var dir= stack.pop();
+	    var ymax = stack.pop();
+	    var xmax = stack.pop();
+	    var ymin = stack.pop();
+	    var xmin = stack.pop();
+
+	    if (node) {
+	      if (fn(node, xmin, ymin, xmax, ymax)) { break; }
+	      var hw = (xmax - xmin) / 2,
+	            hh = (ymax - ymin) / 2;
+	      //const nextDir = dir > 0 ? (dir - 1) : 3;
+	      var nextDir = (dir + 1) % 2;
+
+	      Q.push(node.left, node.right);
+
+	      if (nextDir) { // by x
+	        stack.push(xmin, ymin, xmin + hw, ymax, nextDir);
+	        stack.push(xmin + hw, ymin, xmax, ymax, nextDir);
+	      } else {     // by y
+	        stack.push(xmin, ymin + hh, xmax, ymax, nextDir);
+	        stack.push(xmin, ymin, xmax, ymin + hh, nextDir);
+	      }
+	    }
+	  }
+	  return this;
+	};
+
+
+	BVH.prototype.leafs = function leafs () {
+	  var d = [];
+	  var Q = [this._root];
+	  while (Q.length !== 0) {
+	    var node = Q.pop();
+	    if (node) {
+	      if (node.leaf) { d.push(node); }
+	      else { Q.push.apply(Q, node); }
+	    }
+	  }
+	  return d;
+	};
+
+
+	BVH.prototype.query = function query (x0, y0, x1, y1) {
+	  var res = [];
+	  this.walk(function (n, xmin, ymin, xmax, ymax) {
+	    if (n.data) { res.push(n.data); }
+	    return !(xmax > x0 && xmin < x1) && (ymax > y0 && ymin < y1);
+	  });
+	  return res;
+	};
+
+
+	BVH.prototype.inOrder   = inOrder;
+	BVH.prototype.preOrder  = preOrder;
+	BVH.prototype.postOrder = postOrder;
+	BVH.prototype.map       = map;
+	BVH.prototype.height    = height;
+	BVH.prototype.size      = size;
+	BVH.prototype.toString  = toString;
+
+	BVH.SFC = { HILBERT: HILBERT, MORTON: MORTON };
+
 	var skd = function skd(points) {
 	  var n = points.length;
 	  this.ids = new Array(n);
@@ -4111,10 +4291,10 @@
 
 	  for (var i = 0; i < n; i++) { points[i].id = i; }
 
-	  build$2(0, n, true, points, this.tx, this.ty, this.ids);
+	  build$3(0, n, true, points, this.tx, this.ty, this.ids);
 	};
 
-	function build$2(low, high, dim, points, tx, ty, ids) {
+	function build$3(low, high, dim, points, tx, ty, ids) {
 	  if (low >= high) { return; }
 	  var mid = (low + high) >>> 1;
 	  nth_element(points, low, high, mid, dim);
@@ -4124,8 +4304,8 @@
 	  ty[mid]  = p.y;
 	  ids[mid] = p.id;
 
-	  build$2(low,      mid, !dim, points, tx, ty, ids);
-	  build$2(mid + 1, high, !dim, points, tx, ty, ids);
+	  build$3(low,      mid, !dim, points, tx, ty, ids);
+	  build$3(mid + 1, high, !dim, points, tx, ty, ids);
 	}
 
 	// See: http://www.cplusplus.com/reference/algorithm/nth_element
@@ -4159,7 +4339,7 @@
 	 * 1975 paper "Multidimensional binary search trees used for associative
 	 * searching". */
 
-	var Node$1 = function Node (data) {
+	var Node$2 = function Node (data) {
 	  this.data= data;
 	  this.left= null;
 	  this.right = null;
@@ -4200,7 +4380,7 @@
 
 	  while (true) {
 	    if (current === null) {
-	      current = new Node$1(p);
+	      current = new Node$2(p);
 	      // Assign parent's correct child pointer to new node
 	      if (previous) {
 	        if (leftOfPrevious) { previous.left = current; }
@@ -4304,7 +4484,7 @@
 	  }
 	};
 
-	var Node$2 = function Node () {
+	var Node$3 = function Node () {
 
 	};
 
@@ -4331,7 +4511,7 @@
 
 	function buildNode(begin, end, keys, indexes, getX, getY) {
 	  var d = keys[0].length;
-	  var node = new Node$2();
+	  var node = new Node$3();
 
 	  // Fill in basic info
 	  node.count = end - begin;
@@ -4593,7 +4773,7 @@
 		var BucketLeaf = function BucketLeaf (code, data) {
 		  this.code = code;
 		  this.data = data;
-		    
+
 		  // this.x0 = data.x1 = data[0];
 		  // this.y0 = data.y1 = data[1];
 		};
@@ -5010,11 +5190,464 @@
 		return PHTree;
 
 	})));
-	//# sourceMappingURL=phtree.umd.js.map
+
 	});
 
+	var bvhTs = createCommonjsModule(function (module, exports) {
+	(function (global, factory) {
+	  factory(exports);
+	}(commonjsGlobal, function (exports) {
+	  var X = [0, 1];
+	  var Y = [0, 2];
+	  for (var i = 4; i < 0xffff; i <<= 2) {
+	      for (var j = 0, l = X.length; j < l; j++) {
+	          X.push(X[j] | i);
+	          Y.push((X[j] | i) << 1);
+	      }
+	  }
+	  // Only works for 24 bit input numbers (up to 16777215).
+	  function morton(x, y) {
+	      return ((Y[y & 0xff] | X[x & 0xff]) +
+	          (Y[(y >> 8) & 0xff] | X[(x >> 8) & 0xff]) * 0x10000 +
+	          (Y[(y >> 16) & 0xff] | X[(x >> 16) & 0xff]) * 0x100000000);
+	  }
+
+	  function hilbert(x, y) {
+	      var a = x ^ y;
+	      var b = 0xFFFF ^ a;
+	      var c = 0xFFFF ^ (x | y);
+	      var d = x & (y ^ 0xFFFF);
+	      var A = a | (b >> 1);
+	      var B = (a >> 1) ^ a;
+	      var C = ((c >> 1) ^ (b & (d >> 1))) ^ c;
+	      var D = ((a & (c >> 1)) ^ (d >> 1)) ^ d;
+	      a = A;
+	      b = B;
+	      c = C;
+	      d = D;
+	      A = ((a & (a >> 2)) ^ (b & (b >> 2)));
+	      B = ((a & (b >> 2)) ^ (b & ((a ^ b) >> 2)));
+	      C ^= ((a & (c >> 2)) ^ (b & (d >> 2)));
+	      D ^= ((b & (c >> 2)) ^ ((a ^ b) & (d >> 2)));
+	      a = A;
+	      b = B;
+	      c = C;
+	      d = D;
+	      A = ((a & (a >> 4)) ^ (b & (b >> 4)));
+	      B = ((a & (b >> 4)) ^ (b & ((a ^ b) >> 4)));
+	      C ^= ((a & (c >> 4)) ^ (b & (d >> 4)));
+	      D ^= ((b & (c >> 4)) ^ ((a ^ b) & (d >> 4)));
+	      a = A;
+	      b = B;
+	      c = C;
+	      d = D;
+	      C ^= ((a & (c >> 8)) ^ (b & (d >> 8)));
+	      D ^= ((b & (c >> 8)) ^ ((a ^ b) & (d >> 8)));
+	      a = C ^ (C >> 1);
+	      b = D ^ (D >> 1);
+	      var i0 = x ^ y;
+	      var i1 = b | (0xFFFF ^ (i0 | a));
+	      i0 = (i0 | (i0 << 8)) & 0x00FF00FF;
+	      i0 = (i0 | (i0 << 4)) & 0x0F0F0F0F;
+	      i0 = (i0 | (i0 << 2)) & 0x33333333;
+	      i0 = (i0 | (i0 << 1)) & 0x55555555;
+	      i1 = (i1 | (i1 << 8)) & 0x00FF00FF;
+	      i1 = (i1 | (i1 << 4)) & 0x0F0F0F0F;
+	      i1 = (i1 | (i1 << 2)) & 0x33333333;
+	      i1 = (i1 | (i1 << 1)) & 0x55555555;
+	      return ((i1 << 1) | i0) >>> 0;
+	  }
+
+	  function qsort(data, values, left, right) {
+	      if (left >= right)
+	          { return; }
+	      var pivot = values[(left + right) >> 1];
+	      var i = left - 1;
+	      var j = right + 1;
+	      var temp;
+	      /* eslint-disable-next-line no-constant-condition */
+	      while (true) {
+	          do
+	              { i++; }
+	          while (values[i] < pivot);
+	          do
+	              { j--; }
+	          while (values[j] > pivot);
+	          if (i >= j)
+	              { break; }
+	          // swap(data, values, i, j);
+	          temp = data[i];
+	          data[i] = data[j];
+	          data[j] = temp;
+	          temp = values[i];
+	          values[i] = values[j];
+	          values[j] = temp;
+	      }
+	      qsort(data, values, left, j);
+	      qsort(data, values, j + 1, right);
+	  }
+	  function sort(things, codes) {
+	      return qsort(things, codes, 0, things.length - 1);
+	  }
+
+	  var InternalNode = function InternalNode(code, left, right) {
+	        this.left = null;
+	        this.right = null;
+	        this.code = code;
+	        this.left = left;
+	        this.right = right;
+	        //left.parent = right.parent = this;
+	        // this.x0 = Math.min(left.x0, right.x0);
+	        // this.y0 = Math.min(left.y0, right.y0);
+	        // this.x1 = Math.max(left.x1, right.x1);
+	        // this.y1 = Math.max(left.y1, right.y1);
+	    };
+
+	  var Leaf = function Leaf(code, data) {
+	        this.code = code;
+	        this.data = data;
+	    };
+	  var BucketLeaf = function BucketLeaf(code, data) {
+	        this.code = code;
+	        this.data = data;
+	    };
+
+	  (function (SFC) {
+	      SFC[SFC["HILBERT"] = 1] = "HILBERT";
+	      SFC[SFC["MORTON"] = 0] = "MORTON";
+	  })(exports.SFC || (exports.SFC = {}));
+	  /**
+	   * @typedef {function(*):Number} CoordGetter
+	   */
+	  function buildBuckets(data, ids, codes, first, last, bucketSize) {
+	      if (last - first <= bucketSize) {
+	          var bucket = new Array(last - first + 1);
+	          for (var i = first, j = 0; i <= last; i++, j++)
+	              { bucket[j] = data[ids[i]]; }
+	          return new BucketLeaf(codes[first], bucket);
+	      }
+	      var split = findSplit(codes, first, last);
+	      var left = buildBuckets(data, ids, codes, first, split, bucketSize);
+	      var right = buildBuckets(data, ids, codes, split + 1, last, bucketSize);
+	      return new InternalNode(split, left, right);
+	  }
+	  function build(data, ids, codes, first, last) {
+	      if (last - first === 0)
+	          { return new Leaf(codes[first], data[ids[first]]); }
+	      var split = findSplit(codes, first, last);
+	      //const split = first + ((last - first) >> 1);
+	      var left = build(data, ids, codes, first, split);
+	      var right = build(data, ids, codes, split + 1, last);
+	      return new InternalNode(split, left, right);
+	  }
+	  var Node = function Node() {
+	        this.left = null;
+	        this.right = null;
+	        this.data = null;
+	    };
+	  function buildIterative(data, ids, codes, start, end) {
+	      var root = new Node();
+	      var Q = [root];
+	      var stack = [start, end];
+	      while (Q.length !== 0) {
+	          var last = stack.pop();
+	          var first = stack.pop();
+	          var node = Q.pop();
+	          if (last - first === 0) {
+	              node.code = codes[first];
+	              node.data = data[ids[first]];
+	          }
+	          else {
+	              var split = findSplit(codes, first, last);
+	              //const split = (first + last) >> 1;
+	              node.code = split;
+	              if (first <= split) {
+	                  node.left = new Node();
+	                  Q.push(node.left);
+	                  stack.push(first, split);
+	              }
+	              if (last > split) {
+	                  node.right = new Node();
+	                  Q.push(node.right);
+	                  stack.push(split + 1, last);
+	              }
+	          }
+	      }
+	      return root;
+	  }
+	  function buildIterativeBuckets(data, ids, codes, start, end, bucketSize) {
+	      var root = new Node();
+	      var Q = [root];
+	      var stack = [start, end];
+	      while (Q.length !== 0) {
+	          var last = stack.pop();
+	          var first = stack.pop();
+	          var node = Q.pop();
+	          if (last - first < bucketSize) {
+	              var bucket = new Array(last - first + 1);
+	              for (var i = first, j = 0; i <= last; i++, j++)
+	                  { bucket[j] = data[ids[i]]; }
+	              node.code = codes[first];
+	              node.data = bucket;
+	          }
+	          else {
+	              var split = findSplit(codes, first, last);
+	              node.code = split;
+	              if (first <= split) {
+	                  node.left = new Node();
+	                  Q.push(node.left);
+	                  stack.push(first, split);
+	              }
+	              if (last > split) {
+	                  node.right = new Node();
+	                  Q.push(node.right);
+	                  stack.push(split + 1, last);
+	              }
+	          }
+	      }
+	      return root;
+	  }
+	  // count leading zeroes
+	  function __clz(m) {
+	      var c = 1 << 31;
+	      for (var i = 0; i < 31; i += 1) {
+	          if (c & m)
+	              { return i; }
+	          c >>>= 1;
+	      }
+	      return 32;
+	  }
+	  // https://devblogs.nvidia.com/thinking-parallel-part-iii-tree-construction-gpu/
+	  function findSplit(codes, first, last) {
+	      var f = codes[first];
+	      var l = codes[last];
+	      if (f === l)
+	          { return first; }
+	      // Calculate the number of highest bits that are the same
+	      // for all objects, using the count-leading-zeros intrinsic.
+	      var commonPrefix = __clz(f ^ l);
+	      // Use binary search to find where the next bit differs.
+	      // Specifically, we are looking for the highest object that
+	      // shares more than commonPrefix bits with the first one.
+	      var split = first; // initial guess
+	      var step = last - first, newSplit, splitCode, splitPrefix;
+	      do {
+	          step = (step + 1) >> 1; // exponential decrease
+	          newSplit = split + step; // proposed new position
+	          if (newSplit < last) {
+	              splitCode = codes[newSplit];
+	              splitPrefix = __clz(f ^ splitCode);
+	              if (splitPrefix > commonPrefix)
+	                  { split = newSplit; } // accept proposal
+	          }
+	      } while (step > 1);
+	      return split;
+	  }
+	  /**
+	   * @public
+	   */
+	  var BVH = function BVH(points, ref) {
+	        if ( ref === void 0 ) ref = {};
+	        var getX = ref.getX;
+	        var getY = ref.getY;
+	        var bucketSize = ref.bucketSize; if ( bucketSize === void 0 ) bucketSize = 0;
+	        var sfc = ref.sfc; if ( sfc === void 0 ) sfc = exports.SFC.HILBERT;
+	        var recursive = ref.recursive; if ( recursive === void 0 ) recursive = true;
+
+	        this._bucketSize = 0;
+	        this._root = null;
+	        var n = points.length;
+	        var codes = new Uint32Array(n);
+	        var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+	        var p, i, x, y;
+	        /** @type {CoordGetter} */
+	        this._x = getX;
+	        /** @type {CoordGetter} */
+	        this._y = getY;
+	        var project = sfc === exports.SFC.HILBERT ? hilbert : morton;
+	        this._project = project;
+	        var ids = new Uint32Array(n);
+	        for (i = 0; i < n; i++) {
+	            p = points[i];
+	            x = getX(p);
+	            y = getY(p);
+	            if (x < minX)
+	                { minX = x; }
+	            if (y < minY)
+	                { minY = y; }
+	            if (x > maxX)
+	                { maxX = x; }
+	            if (y > maxY)
+	                { maxY = y; }
+	            ids[i] = i;
+	        }
+	        this._minX = minX;
+	        this._minY = minY;
+	        this._maxX = maxX;
+	        this._maxY = maxY;
+	        var max = (1 << 16) - 1;
+	        var dx = Math.max(maxX - minX, 1);
+	        var dy = Math.max(maxY - minY, 1);
+	        var w = max / dx;
+	        var h = max / dy;
+	        // division by zero safety
+	        this._hw = w;
+	        this._hh = h;
+	        for (i = 0; i < n; i++) {
+	            p = points[i];
+	            codes[i] = project(w * (getX(p) - minX), h * (getY(p) - minY));
+	        }
+	        sort(ids, codes);
+	        if (bucketSize === 0) {
+	            this._root = recursive
+	                ? build(points, ids, codes, 0, n - 1)
+	                : buildIterative(points, ids, codes, 0, n - 1);
+	        }
+	        else {
+	            this._root = recursive
+	                ? buildBuckets(points, ids, codes, 0, n - 1, bucketSize)
+	                : buildIterativeBuckets(points, ids, codes, 0, n - 1, bucketSize);
+	        }
+	        /** @type {Number} */
+	        this._bucketSize = bucketSize;
+	    };
+
+	var prototypeAccessors = { root: { configurable: true } };
+	    prototypeAccessors.root.get = function () {
+	        return this._root;
+	    };
+	    // traversals
+	    BVH.prototype.inOrder = function inOrder (fn, ctx) {
+	        var current = this._root;
+	        var Q = [];
+	        var done = false;
+	        while (!done) {
+	            if (current) {
+	                Q.push(current);
+	                current = current.left;
+	            }
+	            else {
+	                if (Q.length !== 0) {
+	                    current = Q.pop();
+	                    if (fn.call(ctx, current))
+	                        { break; }
+	                    current = current.right;
+	                }
+	                else
+	                    { done = true; }
+	            }
+	        }
+	        return this;
+	    };
+	    BVH.prototype.preOrder = function preOrder (fn, ctx) {
+	        var Q = [this._root];
+	        while (Q.length !== 0) {
+	            var node = Q.pop();
+	            if (!fn.call(ctx, node)) {
+	                if (node.right)
+	                    { Q.push(node.right); }
+	                if (node.left)
+	                    { Q.push(node.left); }
+	            }
+	        }
+	        return this;
+	    };
+	    BVH.prototype.postOrder = function postOrder (fn, ctx) {
+	        var Q = [];
+	        var node = this._root, last;
+	        do {
+	            while (node) {
+	                if (node.right)
+	                    { Q.push(node.right); }
+	                Q.push(node);
+	                node = node.left;
+	            }
+	            node = Q.pop();
+	            last = Q.length - 1;
+	            if (node.right && Q[last] === node.right) {
+	                Q[last] = node;
+	                node = node.right;
+	            }
+	            else {
+	                fn.call(ctx, node);
+	                node = null;
+	            }
+	        } while (Q.length !== 0);
+	        return this;
+	    };
+	    BVH.prototype.map = function map (fn, ctx) {
+	        var res = [];
+	        this.inOrder(function (node) {
+	            res.push(fn.call(ctx, node));
+	        });
+	        return res;
+	    };
+	    /**
+	     * Tree height
+	     * @return {Number}
+	     */
+	    BVH.prototype.height = function height () {
+	        return treeHeight(this._root);
+	    };
+	    /**
+	     * Print tree
+	     * @public
+	     * @export
+	     * @param{Function(Node):String} [printNode]
+	     * @return {String}
+	     */
+	    BVH.prototype.toString = function toString (printNode) {
+	          if ( printNode === void 0 ) printNode = function (n) { return n.code.toString(); };
+
+	        var out = [];
+	        row(this._root, '', true, function (v) { return out.push(v); }, printNode);
+	        return out.join('');
+	    };
+	    /**
+	     * Number of nodes
+	     * @return {Number}
+	     */
+	    BVH.prototype.size = function size () {
+	        var i = 0;
+	        this.preOrder(function () { i++; });
+	        return i;
+	    };
+
+	Object.defineProperties( BVH.prototype, prototypeAccessors );
+	  function treeHeight(node) {
+	      return node ? (1 + Math.max(treeHeight(node.left), treeHeight(node.right))) : 0;
+	  }
+	  /**
+	   * Prints level of the tree
+	   * @param  {Node}                        root
+	   * @param  {String}                      prefix
+	   * @param  {Boolean}                     isTail
+	   * @param  {Function(in:string):void}    out
+	   * @param  {Function(node:Node):String}  printNode
+	   */
+	  function row(root, prefix, isTail, out, printNode) {
+	      if (root) {
+	          out(prefix + (isTail ? '^-- ' : '|-- ') + printNode(root) + '\n');
+	          var indent = prefix + (isTail ? '    ' : '|   ');
+	          if (root.left)
+	              { row(root.left, indent, false, out, printNode); }
+	          if (root.right)
+	              { row(root.right, indent, true, out, printNode); }
+	      }
+	  }
+
+	  exports.default = BVH;
+
+	  Object.defineProperty(exports, '__esModule', { value: true });
+
+	}));
+
+	});
+
+	var BVHTS = unwrapExports(bvhTs);
+
 	// count leading zeroes
-	function __clz(m) {
+	function __clz$1(m) {
 	  var c = 1 << 31;
 	  for (var i = 0; i < 31; i += 1) {
 	    if (c & m) { return i; }
@@ -5025,7 +5658,7 @@
 
 
 	// https://devblogs.nvidia.com/thinking-parallel-part-iii-tree-construction-gpu/
-	function findSplit (codes, first, last) {
+	function findSplit$1 (codes, first, last) {
 	  var f = codes[first];
 	  var l = codes[last];
 
@@ -5033,7 +5666,7 @@
 
 	  // Calculate the number of highest bits that are the same
 	  // for all objects, using the count-leading-zeros intrinsic.
-	  var commonPrefix = __clz(f ^ l);
+	  var commonPrefix = __clz$1(f ^ l);
 
 	  // Use binary search to find where the next bit differs.
 	  // Specifically, we are looking for the highest object that
@@ -5048,18 +5681,18 @@
 
 	    if (newSplit < last) {
 	      splitCode = codes[newSplit];
-	      splitPrefix = __clz(f ^ splitCode);
+	      splitPrefix = __clz$1(f ^ splitCode);
 	      if (splitPrefix > commonPrefix) { split = newSplit; } // accept proposal
 	    }
 	  } while (step > 1)
 	  return split;
 	}
 
-	var defaultX$3 = function (d) { return d.x; };
-	var defaultY$3 = function (d) { return d.y; };
+	var defaultX$4 = function (d) { return d.x; };
+	var defaultY$4 = function (d) { return d.y; };
 
 	var NSIZE = 3;
-	function build$4 (data, ids, codes, first, last, storage, id) {
+	function build$5 (data, ids, codes, first, last, storage, id) {
 	  if (last - first === 0) {
 	    //console.log(id, ids[first]);
 	    storage[id * NSIZE]     = id;
@@ -5067,10 +5700,10 @@
 	    return;
 	    //return new Leaf(codes[first], data[ids[first]]);
 	  }
-	  var split = findSplit(codes, first, last);
+	  var split = findSplit$1(codes, first, last);
 	  //const split = (last + first) >> 1;
-	  var left  = build$4(data, ids, codes, first,     split, storage, id * 2 + 1);
-	  var right = build$4(data, ids, codes, split + 1, last,  storage, id * 2 + 2);
+	  var left  = build$5(data, ids, codes, first,     split, storage, id * 2 + 1);
+	  var right = build$5(data, ids, codes, split + 1, last,  storage, id * 2 + 2);
 
 	  storage[id * NSIZE] = id;
 	  // storage[id * 4 + 1] = id * 2 + 1;
@@ -5082,7 +5715,7 @@
 	  //return new InternalNode(split, left, right);
 	}
 
-	function build$4 (data, ids, codes, start, end, storage, id) {
+	function build$5 (data, ids, codes, start, end, storage, id) {
 	  var stack = [id, start, end];
 
 	  while (stack.length !== 0) {
@@ -5097,7 +5730,7 @@
 	      // node.code = codes[first];
 	      // node.data = data[ids[first]];
 	    } else {
-	      var split = findSplit(codes, first, last);
+	      var split = findSplit$1(codes, first, last);
 	      //const split = (first + last) >> 1;
 	      //node.code = split;
 
@@ -5121,8 +5754,8 @@
 	 * It gets worse if you use morton curve.
 	 */
 	var ArrayTree = function ArrayTree (points, ref) {
-	  var getX = ref.getX; if ( getX === void 0 ) getX = defaultX$3;
-	  var getY = ref.getY; if ( getY === void 0 ) getY = defaultY$3;
+	  var getX = ref.getX; if ( getX === void 0 ) getX = defaultX$4;
+	  var getY = ref.getY; if ( getY === void 0 ) getY = defaultY$4;
 	  var bucketSize = ref.bucketSize; if ( bucketSize === void 0 ) bucketSize = 0;
 
 	  var n     = points.length;
@@ -5159,7 +5792,7 @@
 	  this._y = getY;
 	  this._bucketSize = bucketSize;
 
-	  this._root = build$4(points, order, hvalues, 0, n - 1, storage, 0);
+	  this._root = build$5(points, order, hvalues, 0, n - 1, storage, 0);
 	  this._storage = storage;
 	};
 
@@ -5277,7 +5910,7 @@
 	 * @property {Node}   right
 	 */
 
-	var Node$4 = function Node (key, data) {
+	var Node$5 = function Node (key, data) {
 	  this.key  = key;
 	  this.data = data;
 	  this.left = null;
@@ -5296,7 +5929,7 @@
 	function splay (i, t, comparator) {
 	  if (t === null) { return t; }
 	  var l, r, y;
-	  var N = new Node$4();
+	  var N = new Node$5();
 	  l = r = N;
 
 	  while (true) {
@@ -5350,7 +5983,7 @@
 	 * @return {Node}      root
 	 */
 	function insert$1 (i, data, t, comparator, tree) {
-	  var node = new Node$4(i, data);
+	  var node = new Node$5(i, data);
 
 	  tree._size++;
 
@@ -5383,7 +6016,7 @@
 	 * @return {Node}       root
 	 */
 	function add$1 (i, data, t, comparator, tree) {
-	  var node = new Node$4(i, data);
+	  var node = new Node$5(i, data);
 
 	  if (t === null) {
 	    node.left = node.right = null;
@@ -6022,14 +6655,14 @@
 	var defaultGetX$1 = function (d) { return d.x; };
 	var defaultGetY$1 = function (d) { return d.y; };
 
-	var HILBERT$1 = 1;
+	var HILBERT$2 = 1;
 
 
 	var UBTree = function UBTree (data, getX, getY, sfc) {
 			var this$1 = this;
 			if ( getX === void 0 ) getX = defaultGetX$1;
 			if ( getY === void 0 ) getY = defaultGetY$1;
-			if ( sfc === void 0 ) sfc = HILBERT$1;
+			if ( sfc === void 0 ) sfc = HILBERT$2;
 
 			this._tree = new Tree();
 
@@ -6041,7 +6674,7 @@
 	  this._x = getX;
 	  this._y = getY;
 
-	  var project = sfc === HILBERT$1 ? hilbert : morton_1;
+	  var project = sfc === HILBERT$2 ? hilbert : morton_1;
 	  this._project = project;
 
 	  for (i = 0; i < n; i++) {
@@ -7530,7 +8163,7 @@
 
 	var rnd = seedrandom$1('bench');
 
-	var N = 100000;
+	var N = 10000;
 	var points = new Array(N).fill(0).map(function (_, i) {
 	  if (i < N / 2) {
 	    return { x: rnd() * N / 100, y: rnd() * N / 100 };
@@ -7539,12 +8172,12 @@
 	  }
 	});
 
-	console.log(benchmark.runInContext({}));
-
 	var pointsbh = points.map(function (pos) {
 	  return { pos: pos, force: { x: 0, y: 0 } };
 	});
 
+	var getX = function (d) { return d.x; };
+	var getY = function (d) { return d.y; };
 
 	new benchmark.Suite((" build from " + N + " points"), options)
 	.add('d3-quadtree', function () {
@@ -7559,8 +8192,12 @@
 	  var b = new phtree_umd(points, { sfc: phtree_umd.SFC.MORTON });
 	}).add('BVH reduced (bucket)', function () {
 	  var b = new phtree_umd(points, { bucketSize: Math.floor(Math.log(N)) });
+	}).add('BVH-ts reduced (bucket)', function () {
+	  var b = new BVHTS(points, { getX: getX, getY: getY, bucketSize: Math.floor(Math.log(N)) });
 	}).add('mourner/kdbush', function () {
 	  var kd = kdbush(points, function (p) { return p.x; }, function (p) { return p.y; }, 1);
+	}).add('complete hilbert quadtree', function () {
+	  var ct = new BVH(points, { getX: function (p) { return p.x; }, getY: function (p) { return p.y; } });
 	}).add('hgraph.quadtreebh', function () {
 	  var q = ngraph_quadtreebh();
 	  q.insertBodies(pointsbh);
