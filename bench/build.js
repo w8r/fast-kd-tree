@@ -48,8 +48,12 @@ new Benchmark.Suite(` build from ${N} points`, options)
   const b = new BVH(points, { sfc: BVH.SFC.MORTON });
 }).add('BVH reduced (bucket)', () => {
   const b = new BVH(points, { bucketSize: Math.floor(Math.log(N)) });
+}).add('BVH reduced (bucket) iterative', () => {
+  const b = new BVH(points, { bucketSize: Math.floor(Math.log(N)), recursive: false });
 }).add('BVH-ts reduced (bucket)', () => {
   const b = new BVHTS(points, { getX, getY, bucketSize: Math.floor(Math.log(N)) });
+}).add('BVH-ts reduced (bucket) iterative', () => {
+  const b = new BVHTS(points, { getX, getY, bucketSize: Math.floor(Math.log(N)), recursive: false });
 }).add('mourner/kdbush', () => {
   const kd = kdbush(points, p => p.x, p => p.y, 1);
 }).add('complete hilbert quadtree', () => {

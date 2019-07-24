@@ -133,7 +133,7 @@
    * @typedef {function(*):Number} CoordGetter
    */
   function buildBuckets(data, ids, codes, first, last, bucketSize) {
-      if (last - first <= bucketSize) {
+      if (last - first < bucketSize) {
           const bucket = new Array(last - first + 1);
           for (let i = first, j = 0; i <= last; i++, j++)
               bucket[j] = data[ids[i]];
