@@ -1,6 +1,7 @@
 import { assert } from 'chai';
-import quicksort from '../src/sort';
-import BVH from '../src/phtree';
+import { describe, it } from 'mocha';
+import BVH from '../src/bvh';
+import LBVH from '../src/linear-bvh';
 
 
 function createPoints(n = 10) {
@@ -119,6 +120,39 @@ describe('fast kd-tree', () => {
     rec(t._root);
 
     assert.deepEqual(codes, check);
+  });
+});
+
+describe.only('linear bvh', () => {
+  it ('constructs', () => {
+    const pts = createPoints(3);
+    console.log(pts);
+    console.log();
+    console.log();
+    const t = new LBVH(pts, { recursive: false });
+    const t2 = new BVH(pts);
+
+    const t3 = new LBVH(pts);
+    console.log(t3._root);
+
+
+    console.log();
+    console.log();
+    t2.inOrder(n => {
+      if (n.data) console.log(n.data);
+    });
+
+    console.log();
+    console.log();
+    t.inOrder(n => {
+      console.log(n);
+    })
+
+    console.log();
+    console.log();
+    t3.inOrder(n => {
+      console.log(n);
+    })
   });
 });
 

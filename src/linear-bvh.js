@@ -5,7 +5,7 @@ import sort    from './sort';
 import InternalNode from './internal_node';
 import { Leaf, BucketLeaf } from './leaf';
 import {
-  map, preOrder, postOrder, inOrder,
+  map, preOrder, postOrder,
   height, size, toString
 } from './traversals';
 
@@ -31,13 +31,28 @@ function buildBuckets (data, ids, codes, first, last, bucketSize) {
 }
 
 
-function build (data, ids, codes, first, last, arr) {
-  if (last - first === 0) return new Leaf(codes[first], data[ids[first]]);
+function build (data, ids, codes, first, last, arr, current = 0, parent = -1) {
+  const size = 4;
+  if (last - first === 0) {
+    arr[current * size] = parent;
+    arr[current * size + 1] = -1;
+    arr[current * size + 2] = -1;
+    arr[current * size + 3] = ids[first];
+    return current;
+  }
   const split = findSplit(codes, first, last);
   //const split = first + ((last - first) >> 1);
-  const left  = build(data, ids, codes, first, split, arr);
-  const right = build(data, ids, codes, split + 1, last, arr);
-  return new InternalNode(split, left, right);
+  // const left = current * 2 + 1;
+  // const right = current * 2 + 2;
+  // arr[current * size + 1] = left;
+  // arr[current * size + 2] = right;
+  const left = build(data, ids, codes, first, split, arr, current + 1, current);
+  arr[current * size] = parent;
+  arr[current * size + 1] = current + 1;
+  // arr[current * size + 2] = right;
+  const right = build(data, ids, codes, split + 1, last, arr, left + 1, current);
+  arr[current * size + 2] = left + 1;
+  return right;
 }
 
 
@@ -52,38 +67,41 @@ class Node {
 }
 
 
-function buildIterative (data, ids, codes, start, end) {
-  let root    = new Node();
-  const stack = [root, start, end];
+function buildIterative (data, ids, codes, start, end, storage, size) {
+  const stack = [0, start, end];
 
   while (stack.length !== 0) {
     const last  = stack.pop();
     const first = stack.pop();
     const node  = stack.pop();
 
+    //console.log('processing', node, node * size);
+
+    storage[node * size] = node;
+
     if (last - first === 0) {
-      node.code = codes[first];
-      node.data = data[ids[first]];
+      storage[node * size + 1] = -1;
+      storage[node * size + 2] = ids[first];
     } else {
       const split = findSplit(codes, first, last);
       //const split = (first + last) >> 1;
-      node.code = split;
+      storage[node * size + 1] = node * 2 + 1;
+      storage[node * size + 2] = node * 2 + 2;
 
       if (first <= split) {
-        node.left = new Node();
-        stack.push(node.left);
-        stack.push(first, split);
+        //console.log('left', node * 2 + 1);
+        stack.push(node * 2 + 1, first, split);
       }
 
       if (last > split) {
-        node.right = new Node();
-        stack.push(node.right);
-        stack.push(split + 1, last);
+        //console.log('right', node * 2 + 2);
+        stack.push(node * 2 + 2, split + 1, last);
       }
     }
   }
-  return root;
+  return storage;
 }
+
 
 
 
@@ -235,66 +253,52 @@ export default class BVH {
     sort(ids, codes);
 
     if (bucketSize === 0) {
-      this._root = recursive
-        ? build(points, ids, codes, 0, n - 1)
-        : buildIterative(points, ids, codes, 0, n - 1);
+      this._size = 4;
+      this._root = new Int32Array((n * 2 + 1) * this._size);
+      recursive
+        ? build(points, ids, codes, 0, n - 1, this._root)
+        : buildIterative(points, ids, codes, 0, n - 1, this._root, this._size);
     } else {
       this._root = recursive
         ? buildBuckets(points, ids, codes, 0, n - 1, bucketSize)
         : buildIterativeBuckets(points, ids, codes, 0, n - 1, bucketSize);
     }
+    this._data = points;
+    this._ids = ids;
     /** @type {Number} */
     this._bucketSize = bucketSize;
   }
 
 
-  walk (fn) {
-    const stack = [this._minX, this._minY, this._maxX, this._maxY, 0];
-    const Q = [this._root];
+  inOrder (fn, ctx) {
+    let current = 0;
+    const Q = [];
+    let done = false;
+    const storage = this._root, size = this._size;
+    const max = this._ids.length * 2 + 1;
 
-    while (Q.length !== 0) {
-      const node = Q.pop();
-
-      const dir  = stack.pop();
-      const ymax = stack.pop();
-      const xmax = stack.pop();
-      const ymin = stack.pop();
-      const xmin = stack.pop();
-
-      if (node) {
-        if (fn(node, xmin, ymin, xmax, ymax)) break;
-        const hw = (xmax - xmin) / 2,
-              hh = (ymax - ymin) / 2;
-        //const nextDir = dir > 0 ? (dir - 1) : 3;
-        const nextDir = (dir + 1) % 2;
-
-        Q.push(node.left, node.right)
-
-        if (nextDir) { // by x
-          stack.push(xmin, ymin, xmin + hw, ymax, nextDir);
-          stack.push(xmin + hw, ymin, xmax, ymax, nextDir);
-        } else {       // by y
-          stack.push(xmin, ymin + hh, xmax, ymax, nextDir);
-          stack.push(xmin, ymin, xmax, ymin + hh, nextDir);
-        }
+    while (!done) {
+      if (current < max) {
+        Q.push(current);
+        // go left
+        current = current * 2 + 1;
+      } else {
+        if (Q.length !== 0) {
+          current = Q.pop();
+          const pos = current * size;
+          const data = (storage[pos + 1] === -1)
+            ? this._data[storage[pos + 2]] : null;
+          if (fn.call(ctx, data, pos)) break;
+          // go right
+          current = current * 2 + 2;
+        } else done = true;
       }
     }
     return this;
   }
-
-
-  query (x0, y0, x1, y1) {
-    const res = [];
-    this.walk((n, xmin, ymin, xmax, ymax) => {
-      if (n.data) res.push(n.data);
-      return !(xmax > x0 && xmin < x1) && (ymax > y0 && ymin < y1);
-    });
-    return res;
-  }
 }
 
 
-BVH.prototype.inOrder   = inOrder;
 BVH.prototype.preOrder  = preOrder;
 BVH.prototype.postOrder = postOrder;
 BVH.prototype.map       = map;

@@ -16,6 +16,7 @@ import AVH from '../src/array-tree';
 import UB from '../src/ubtree';
 import seedrandom from 'seedrandom';
 import qtreebh from 'ngraph.quadtreebh';
+import LBVH from '../src/linear-bvh';
 
 const rnd = seedrandom('bench');
 
@@ -42,6 +43,10 @@ new Benchmark.Suite(` build from ${N} points`, options)
   const a = new AVH(points, { recursive: false });
 }).add('BVH', () => {
   const b = new BVH(points, { recursive: false });
+}).add('LBVH iterative', () => {
+  const b = new LBVH(points, { recursive: false });
+}).add('LBVH recursive', () => {
+  const b = new LBVH(points, { recursive: true });
 }).add('BVH-recursive', () => {
   const b = new BVH(points);
 }).add('BVH-morton', () => {
