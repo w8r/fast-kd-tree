@@ -352,8 +352,6 @@
 	}
 
 
-
-
 	var Node = function Node () {
 	  this.code = 0;
 	  //this.parent = parent;
@@ -395,6 +393,7 @@
 	  }
 	  return root;
 	}
+
 
 
 	function buildIterativeBuckets (data, ids, codes, start, end, bucketSize) {

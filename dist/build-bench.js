@@ -3613,6 +3613,15 @@
 	  // this.y0 = this.y1 = data[1];
 	};
 
+
+	var BucketLeaf = function BucketLeaf (code, data) {
+	  this.code = code;
+	  this.data = data;
+	    
+	  // this.x0 = data.x1 = data[0];
+	  // this.y0 = data.y1 = data[1];
+	};
+
 	function inOrder (fn, ctx) {
 	  var current = this._root;
 	  var Q = [];
@@ -5320,7 +5329,7 @@
 	   * @typedef {function(*):Number} CoordGetter
 	   */
 	  function buildBuckets(data, ids, codes, first, last, bucketSize) {
-	      if (last - first <= bucketSize) {
+	      if (last - first < bucketSize) {
 	          var bucket = new Array(last - first + 1);
 	          for (var i = first, j = 0; i <= last; i++, j++)
 	              { bucket[j] = data[ids[i]]; }
@@ -7666,46 +7675,76 @@
 
 	var seedrandom$1 = seedrandom;
 
-	var ngraph_random = {
-	  random: random,
-	  randomIterator: randomIterator
-	};
+	var ngraph_random = createCommonjsModule(function (module) {
+	module.exports = random;
+
+	// TODO: Deprecate?
+	module.exports.random = random,
+	module.exports.randomIterator = randomIterator;
 
 	/**
 	 * Creates seeded PRNG with two methods:
 	 *   next() and nextDouble()
 	 */
 	function random(inputSeed) {
-	  var seed = typeof inputSeed === 'number' ? inputSeed : (+ new Date());
-	  var randomFunc = function() {
-	      // Robert Jenkins' 32 bit integer hash function.
-	      seed = ((seed + 0x7ed55d16) + (seed << 12))  & 0xffffffff;
-	      seed = ((seed ^ 0xc761c23c) ^ (seed >>> 19)) & 0xffffffff;
-	      seed = ((seed + 0x165667b1) + (seed << 5))   & 0xffffffff;
-	      seed = ((seed + 0xd3a2646c) ^ (seed << 9))   & 0xffffffff;
-	      seed = ((seed + 0xfd7046c5) + (seed << 3))   & 0xffffffff;
-	      seed = ((seed ^ 0xb55a4f09) ^ (seed >>> 16)) & 0xffffffff;
-	      return (seed & 0xfffffff) / 0x10000000;
-	  };
+	  var seed = typeof inputSeed === 'number' ? inputSeed : (+new Date());
+	  return new Generator(seed)
+	}
 
-	  return {
-	      /**
-	       * Generates random integer number in the range from 0 (inclusive) to maxValue (exclusive)
-	       *
-	       * @param maxValue Number REQUIRED. Ommitting this number will result in NaN values from PRNG.
-	       */
-	      next : function (maxValue) {
-	          return Math.floor(randomFunc() * maxValue);
-	      },
+	function Generator(seed) {
+	  this.seed = seed;
+	}
 
-	      /**
-	       * Generates random double number in the range from 0 (inclusive) to 1 (exclusive)
-	       * This function is the same as Math.random() (except that it could be seeded)
-	       */
-	      nextDouble : function () {
-	          return randomFunc();
-	      }
-	  };
+	/**
+	  * Generates random integer number in the range from 0 (inclusive) to maxValue (exclusive)
+	  *
+	  * @param maxValue Number REQUIRED. Omitting this number will result in NaN values from PRNG.
+	  */
+	Generator.prototype.next = next;
+
+	/**
+	  * Generates random double number in the range from 0 (inclusive) to 1 (exclusive)
+	  * This function is the same as Math.random() (except that it could be seeded)
+	  */
+	Generator.prototype.nextDouble = nextDouble;
+
+	/**
+	 * Returns a random real number uniformly in [0, 1)
+	 */
+	Generator.prototype.uniform = nextDouble;
+
+	Generator.prototype.gaussian = gaussian;
+
+	function gaussian() {
+	  var this$1 = this;
+
+	  // use the polar form of the Box-Muller transform
+	  // based on https://introcs.cs.princeton.edu/java/23recursion/StdRandom.java
+	  var r, x, y;
+	  do {
+	    x = this$1.nextDouble() * 2 - 1;
+	    y = this$1.nextDouble() * 2 - 1;
+	    r = x * x + y * y;
+	  } while (r >= 1 || r === 0);
+
+	  return x * Math.sqrt(-2 * Math.log(r)/r);
+	}
+
+	function nextDouble() {
+	  var seed = this.seed;
+	  // Robert Jenkins' 32 bit integer hash function.
+	  seed = ((seed + 0x7ed55d16) + (seed << 12)) & 0xffffffff;
+	  seed = ((seed ^ 0xc761c23c) ^ (seed >>> 19)) & 0xffffffff;
+	  seed = ((seed + 0x165667b1) + (seed << 5)) & 0xffffffff;
+	  seed = ((seed + 0xd3a2646c) ^ (seed << 9)) & 0xffffffff;
+	  seed = ((seed + 0xfd7046c5) + (seed << 3)) & 0xffffffff;
+	  seed = ((seed ^ 0xb55a4f09) ^ (seed >>> 16)) & 0xffffffff;
+	  this.seed = seed;
+	  return (seed & 0xfffffff) / 0x10000000;
+	}
+
+	function next(maxValue) {
+	  return Math.floor(this.nextDouble() * maxValue);
 	}
 
 	/*
@@ -7713,44 +7752,51 @@
 	 * Time complexity is guaranteed to be O(n);
 	 */
 	function randomIterator(array, customRandom) {
-	    var localRandom = customRandom || random();
-	    if (typeof localRandom.next !== 'function') {
-	      throw new Error('customRandom does not match expected API: next() function is missing');
+	  var localRandom = customRandom || random();
+	  if (typeof localRandom.next !== 'function') {
+	    throw new Error('customRandom does not match expected API: next() function is missing');
+	  }
+
+	  return {
+	    forEach: forEach,
+
+	    /**
+	     * Shuffles array randomly, in place.
+	     */
+	    shuffle: shuffle
+	  };
+
+	  function shuffle() {
+	    var i, j, t;
+	    for (i = array.length - 1; i > 0; --i) {
+	      j = localRandom.next(i + 1); // i inclusive
+	      t = array[j];
+	      array[j] = array[i];
+	      array[i] = t;
 	    }
 
-	    return {
-	        forEach : function (callback) {
-	            var i, j, t;
-	            for (i = array.length - 1; i > 0; --i) {
-	                j = localRandom.next(i + 1); // i inclusive
-	                t = array[j];
-	                array[j] = array[i];
-	                array[i] = t;
+	    return array;
+	  }
 
-	                callback(t);
-	            }
+	  function forEach(callback) {
+	    var i, j, t;
+	    for (i = array.length - 1; i > 0; --i) {
+	      j = localRandom.next(i + 1); // i inclusive
+	      t = array[j];
+	      array[j] = array[i];
+	      array[i] = t;
 
-	            if (array.length) {
-	                callback(array[0]);
-	            }
-	        },
+	      callback(t);
+	    }
 
-	        /**
-	         * Shuffles array randomly, in place.
-	         */
-	        shuffle : function () {
-	            var i, j, t;
-	            for (i = array.length - 1; i > 0; --i) {
-	                j = localRandom.next(i + 1); // i inclusive
-	                t = array[j];
-	                array[j] = array[i];
-	                array[i] = t;
-	            }
-
-	            return array;
-	        }
-	    };
+	    if (array.length) {
+	      callback(array[0]);
+	    }
+	  }
 	}
+	});
+	var ngraph_random_1 = ngraph_random.random;
+	var ngraph_random_2 = ngraph_random.randomIterator;
 
 	/**
 	 * Internal data structure to represent 2D QuadTree node
@@ -8161,6 +8207,301 @@
 	  else if (idx === 3) { node$$1.quad3 = child; }
 	}
 
+	var HILBERT$3 = 1;
+	var MORTON$3  = 0;
+
+	/**
+	 * @typedef {function(*):Number} CoordGetter
+	 */
+
+
+	function buildBuckets$2 (data, ids, codes, first, last, bucketSize) {
+	  if (last - first <= bucketSize) {
+	    var bucket = new Array(last - first + 1);
+	    for (var i = first, j = 0; i <= last; i++, j++) { bucket[j] = data[ids[i]]; }
+	    return new BucketLeaf(codes[first], bucket);
+	  }
+	  var split = findSplit$2(codes, first, last);
+	  var left  = buildBuckets$2(data, ids, codes, first, split, bucketSize);
+	  var right = buildBuckets$2(data, ids, codes, split + 1, last, bucketSize);
+
+	  return new InternalNode(split, left, right);
+	}
+
+
+	function build$6 (data, ids, codes, first, last, arr, current, parent) {
+	  if ( current === void 0 ) current = 0;
+	  if ( parent === void 0 ) parent = -1;
+
+	  var size$$1 = 4;
+	  if (last - first === 0) {
+	    arr[current * size$$1] = parent;
+	    arr[current * size$$1 + 1] = -1;
+	    arr[current * size$$1 + 2] = -1;
+	    arr[current * size$$1 + 3] = ids[first];
+	    return current;
+	  }
+	  var split = findSplit$2(codes, first, last);
+	  //const split = first + ((last - first) >> 1);
+	  // const left = current * 2 + 1;
+	  // const right = current * 2 + 2;
+	  // arr[current * size + 1] = left;
+	  // arr[current * size + 2] = right;
+	  var left = build$6(data, ids, codes, first, split, arr, current + 1, current);
+	  arr[current * size$$1] = parent;
+	  arr[current * size$$1 + 1] = current + 1;
+	  // arr[current * size + 2] = right;
+	  var right = build$6(data, ids, codes, split + 1, last, arr, left + 1, current);
+	  arr[current * size$$1 + 2] = left + 1;
+	  return right;
+	}
+
+
+	var Node$6 = function Node () {
+	  this.code = 0;
+	  //this.parent = parent;
+	  this.left = null;
+	  this.right= null;
+	  this.data = null;
+	};
+
+
+	function buildIterative$2 (data, ids, codes, start, end, storage, size$$1) {
+	  var stack = [0, start, end];
+
+	  while (stack.length !== 0) {
+	    var last  = stack.pop();
+	    var first = stack.pop();
+	    var node  = stack.pop();
+
+	    //console.log('processing', node, node * size);
+
+	    storage[node * size$$1] = node;
+
+	    if (last - first === 0) {
+	      storage[node * size$$1 + 1] = -1;
+	      storage[node * size$$1 + 2] = ids[first];
+	    } else {
+	      var split = findSplit$2(codes, first, last);
+	      //const split = (first + last) >> 1;
+	      storage[node * size$$1 + 1] = node * 2 + 1;
+	      storage[node * size$$1 + 2] = node * 2 + 2;
+
+	      if (first <= split) {
+	        //console.log('left', node * 2 + 1);
+	        stack.push(node * 2 + 1, first, split);
+	      }
+
+	      if (last > split) {
+	        //console.log('right', node * 2 + 2);
+	        stack.push(node * 2 + 2, split + 1, last);
+	      }
+	    }
+	  }
+	  return storage;
+	}
+
+
+
+
+	function buildIterativeBuckets$2 (data, ids, codes, start, end, bucketSize) {
+	  var root = new Node$6(null);
+	  var Q = [root];
+	  var stack = [start, end];
+
+	  while (Q.length !== 0) {
+	    var last  = stack.pop();
+	    var first = stack.pop();
+	    var node  = Q.pop();
+
+	    if (last - first < bucketSize) {
+	      var bucket = new Array(last - first + 1);
+	      for (var i = first, j = 0; i <= last; i++, j++) { bucket[j] = data[ids[i]]; }
+	      node.code = codes[first];
+	      node.data = bucket;
+	    } else {
+	      var split = findSplit$2(codes, first, last);
+	      node.code = split;
+
+	      if (first <= split) {
+	        node.left = new Node$6(split, node);
+	        Q.push(node.left);
+	        stack.push(first, split);
+	      }
+
+	      if (last > split) {
+	        node.right = new Node$6(node);
+	        Q.push(node.right);
+	        stack.push(split + 1, last);
+	      }
+	    }
+	  }
+	  return root;
+	}
+
+
+	// count leading zeroes
+	function __clz$2(m) {
+	  var c = 1 << 31;
+	  for (var i = 0; i < 31; i += 1) {
+	    if (c & m) { return i; }
+	    c >>>= 1;
+	  }
+	  return 32;
+	}
+
+
+	// https://devblogs.nvidia.com/thinking-parallel-part-iii-tree-construction-gpu/
+	function findSplit$2 (codes, first, last) {
+	  var f = codes[first];
+	  var l = codes[last];
+
+	  if (f === l) { return first; }
+
+	  // Calculate the number of highest bits that are the same
+	  // for all objects, using the count-leading-zeros intrinsic.
+	  var commonPrefix = __clz$2(f ^ l);
+
+	  // Use binary search to find where the next bit differs.
+	  // Specifically, we are looking for the highest object that
+	  // shares more than commonPrefix bits with the first one.
+
+	  var split = first; // initial guess
+	  var step = last - first, newSplit, splitCode, splitPrefix;
+
+	  do {
+	    step = (step + 1) >> 1; // exponential decrease
+	    newSplit = split + step; // proposed new position
+
+	    if (newSplit < last) {
+	      splitCode = codes[newSplit];
+	      splitPrefix = __clz$2(f ^ splitCode);
+	      if (splitPrefix > commonPrefix) { split = newSplit; } // accept proposal
+	    }
+	  } while (step > 1)
+	  return split;
+	}
+
+
+	var defaultX$5 = function (p) { return p.x; };
+	var defaultY$5 = function (p) { return p.y; };
+
+	/**
+	 * @public
+	 */
+	var BVH$2 = function BVH (points, ref) {
+	  if ( ref === void 0 ) ref = {};
+	  var getX = ref.getX; if ( getX === void 0 ) getX = defaultX$5;
+	  var getY = ref.getY; if ( getY === void 0 ) getY = defaultY$5;
+	  var bucketSize = ref.bucketSize; if ( bucketSize === void 0 ) bucketSize = 0;
+	  var sfc = ref.sfc; if ( sfc === void 0 ) sfc = HILBERT$3;
+	  var recursive = ref.recursive; if ( recursive === void 0 ) recursive = true;
+
+	  var n   = points.length;
+	  var codes = new Uint32Array(n);
+	  var minX = Infinity, minY = Infinity,
+	      maxX = -Infinity, maxY = -Infinity;
+	  var p, i, x, y;
+
+	  /** @type {CoordGetter} */
+	  this._x = getX;
+	  /** @type {CoordGetter} */
+	  this._y = getY;
+
+	  var project = sfc === HILBERT$3 ? hilbert : morton_1;
+	  this._project = project;
+
+	  var ids = new Uint32Array(n);
+
+	  for (i = 0; i < n; i++) {
+	    p = points[i];
+	    x = getX(p);
+	    y = getY(p);
+	    if (x < minX) { minX = x; }
+	    if (y < minY) { minY = y; }
+	    if (x > maxX) { maxX = x; }
+	    if (y > maxY) { maxY = y; }
+	    ids[i] = i;
+	  }
+
+	  /** @type {Number} */
+	  this._minX = minX;
+	  /** @type {Number} */
+	  this._minY = minY;
+	  /** @type {Number} */
+	  this._maxX = maxX;
+	  /** @type {Number} */
+	  this._maxY = maxY;
+
+	  var max = (1 << 16) - 1;
+	  var w = max / (maxX - minX);
+	  var h = max / (maxY - minY);
+	  this._hw = w;
+	  this._hh = h;
+
+	  for (i = 0; i < n; i++) {
+	    p = points[i];
+	    codes[i] = project(w * (getX(p) - minX), h * (getY(p) - minY));
+	  }
+	  sort(ids, codes);
+
+	  if (bucketSize === 0) {
+	    this._size = 4;
+	    this._root = new Int32Array((n * 2 + 1) * this._size);
+	    recursive
+	      ? build$6(points, ids, codes, 0, n - 1, this._root)
+	      : buildIterative$2(points, ids, codes, 0, n - 1, this._root, this._size);
+	  } else {
+	    this._root = recursive
+	      ? buildBuckets$2(points, ids, codes, 0, n - 1, bucketSize)
+	      : buildIterativeBuckets$2(points, ids, codes, 0, n - 1, bucketSize);
+	  }
+	  this._data = points;
+	  this._ids = ids;
+	  /** @type {Number} */
+	  this._bucketSize = bucketSize;
+	};
+
+
+	BVH$2.prototype.inOrder = function inOrder$$1 (fn, ctx) {
+	    var this$1 = this;
+
+	  var current = 0;
+	  var Q = [];
+	  var done = false;
+	  var storage = this._root, size$$1 = this._size;
+	  var max = this._ids.length * 2 + 1;
+
+	  while (!done) {
+	    if (current < max) {
+	      Q.push(current);
+	      // go left
+	      current = current * 2 + 1;
+	    } else {
+	      if (Q.length !== 0) {
+	        current = Q.pop();
+	        var pos = current * size$$1;
+	        var data = (storage[pos + 1] === -1)
+	          ? this$1._data[storage[pos + 2]] : null;
+	        if (fn.call(ctx, data, pos)) { break; }
+	        // go right
+	        current = current * 2 + 2;
+	      } else { done = true; }
+	    }
+	  }
+	  return this;
+	};
+
+
+	BVH$2.prototype.preOrder  = preOrder;
+	BVH$2.prototype.postOrder = postOrder;
+	BVH$2.prototype.map       = map;
+	BVH$2.prototype.height    = height;
+	BVH$2.prototype.size      = size;
+	BVH$2.prototype.toString  = toString;
+
+	BVH$2.SFC = { HILBERT: HILBERT$3, MORTON: MORTON$3 };
+
 	var rnd = seedrandom$1('bench');
 
 	var N = 10000;
@@ -8186,14 +8527,22 @@
 	  var a = new ArrayTree(points, { recursive: false });
 	}).add('BVH', function () {
 	  var b = new phtree_umd(points, { recursive: false });
+	}).add('LBVH iterative', function () {
+	  var b = new BVH$2(points, { recursive: false });
+	}).add('LBVH recursive', function () {
+	  var b = new BVH$2(points, { recursive: true });
 	}).add('BVH-recursive', function () {
 	  var b = new phtree_umd(points);
 	}).add('BVH-morton', function () {
 	  var b = new phtree_umd(points, { sfc: phtree_umd.SFC.MORTON });
 	}).add('BVH reduced (bucket)', function () {
 	  var b = new phtree_umd(points, { bucketSize: Math.floor(Math.log(N)) });
+	}).add('BVH reduced (bucket) iterative', function () {
+	  var b = new phtree_umd(points, { bucketSize: Math.floor(Math.log(N)), recursive: false });
 	}).add('BVH-ts reduced (bucket)', function () {
 	  var b = new BVHTS(points, { getX: getX, getY: getY, bucketSize: Math.floor(Math.log(N)) });
+	}).add('BVH-ts reduced (bucket) iterative', function () {
+	  var b = new BVHTS(points, { getX: getX, getY: getY, bucketSize: Math.floor(Math.log(N)), recursive: false });
 	}).add('mourner/kdbush', function () {
 	  var kd = kdbush(points, function (p) { return p.x; }, function (p) { return p.y; }, 1);
 	}).add('complete hilbert quadtree', function () {
