@@ -35,7 +35,7 @@
     "d3-binarytree": "^0.1.4",
     "eslint": "^5.3.0",
     "kdbush": "^2.0.1",
-    "mocha": "^5.2.0",
+    "mocha": "^10.2.0",
     "reify": "^0.17.2",
     "rollup": "^0.63.5",
     "rollup-plugin-buble": "^0.19.2",
